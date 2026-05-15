@@ -6,7 +6,7 @@ from sqlalchemy.ext.asyncio import (
     create_async_engine,
 )
 
-from core.config import settings
+from app.core.config import settings
 
 
 # Async Engine yaratish
@@ -39,7 +39,7 @@ async def get_db() -> AsyncGenerator[AsyncSession, None]:
 # Barcha modellarni import qilish va tablelarni yaratish uchun
 async def init_db():
     """Jadvallarni yaratish (birinchi marta ishga tushirganda)"""
-    from database.base import Base  # Barcha modellaringiz Base dan meros olgan
+    from app.database.base import Base  # Barcha modellaringiz Base dan meros olgan
 
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
@@ -47,7 +47,7 @@ async def init_db():
 
 # Optional: Tablelarni o'chirish (test uchun)
 async def drop_db():
-    from database.base import Base
+    from app.database.base import Base
 
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.drop_all)

@@ -15,6 +15,10 @@ class Settings(BaseSettings):
     DB_USER: str
     DB_PASSWORD: str
 
+    WEBHOOK_HOST: str 
+    WEBHOOK_PATH: str = "/webhook"
+    WEBHOOK_URL: str = ""
+
     REDIS_HOST: Optional[str] = None
     REDIS_PORT: int = 6379
     REDIS_PASSWORD: Optional[str] = None
