@@ -5,10 +5,10 @@ from aiogram.filters import CommandStart
 from aiogram.utils.deep_linking import decode_payload
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from core.config import settings
-from services.subscription_service import SubscriptionService
-from services.referral_service import ReferralService
-from repositories.user_repo import UserRepository
+from app.core.config import settings
+from app.services.subscription_service import SubscriptionService
+from app.services.referral_service import ReferralService
+from app.repositories.user_repo import UserRepository
 
 router = Router()
 

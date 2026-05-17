@@ -12,6 +12,11 @@ bot = Bot(
 dp = Dispatcher()
 
 # Handlerslarni ro'yxatdan o'tkazish
-from bot.handlers import start, other  # o'zingizning handlerlaringiz
+from app.bot.handlers import all_handler
+from app.bot.middlewares import SubscriptionMiddleware
+
+dp.update.middleware(SubscriptionMiddleware)
+dp.include_router(all_handler)
+
 
 __all__ = ["bot", "dp"]

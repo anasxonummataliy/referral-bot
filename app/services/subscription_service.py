@@ -2,8 +2,8 @@
 from typing import Sequence
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from repositories.channel_repo import ChannelRepository
-from repositories.user_repo import UserRepository
+from app.repositories.channel_repo import ChannelRepository
+from app.repositories.user_repo import UserRepository
 from app.database.models import Channel
 from aiogram import Bot
 

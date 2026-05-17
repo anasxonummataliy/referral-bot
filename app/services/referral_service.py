@@ -3,8 +3,8 @@ from aiogram.utils.deep_linking import create_deep_link
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.repositories.secret_channel_repo import SecretChannelRepository
-from repositories.user_repo import UserRepository
-from repositories.referral_repo import ReferralRepository
+from app.repositories.user_repo import UserRepository
+from app.repositories.referral_repo import ReferralRepository
 
 
 class ReferralService:

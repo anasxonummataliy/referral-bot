@@ -1,6 +1,6 @@
 # bot/handlers/admin/base.py
 from aiogram import Router
-from core.config import settings
+from app.core.config import settings
 
 admin_router = Router(name="admin")
 

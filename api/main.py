@@ -13,9 +13,9 @@ async def lifespan(app: FastAPI):
     print("🚀 Bot ishga tushmoqda...")
     await init_db()
     await bot.set_webhook(
-        url=f"{settings.WEBHOOK_URL}{settings.WEBHOOK_PATH}", drop_pending_updates=True
+        url=f"{settings.WEBHOOK_HOST}{settings.WEBHOOK_PATH}", drop_pending_updates=True
     )
-    print(f"✅ Webhook sozlandi: {settings.WEBHOOK_URL}{settings.WEBHOOK_PATH}")
+    print(f"✅ Webhook sozlandi: {settings.WEBHOOK_HOST}{settings.WEBHOOK_PATH}")
     yield
     print("⛔ Bot to‘xtamoqda...")
     await bot.session.close()

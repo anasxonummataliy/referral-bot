@@ -4,8 +4,8 @@ from aiogram.types import Message, CallbackQuery
 from typing import Callable, Dict, Any
 
 from sqlalchemy.ext.asyncio import AsyncSession
-from services.subscription_service import SubscriptionService
-from core.config import settings
+from app.services.subscription_service import SubscriptionService
+from app.core.config import settings
 
 
 class SubscriptionMiddleware(BaseMiddleware):

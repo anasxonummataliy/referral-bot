@@ -5,7 +5,7 @@ from aiogram.filters import Command
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from .base import admin_router, is_admin
-from repositories.user_repo import UserRepository
+from app.repositories.user_repo import UserRepository
 
 router = admin_router
 
