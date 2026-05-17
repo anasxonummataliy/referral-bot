@@ -6,14 +6,14 @@ class Settings(BaseSettings):
 
     BOT_TOKEN: str
     BOT_USERNAME: Optional[str] = None
-    ADMIN: list[int]
+    ADMIN: list[int] = []
 
     # PostgreSQL
     DB_HOST: str = "localhost"
     DB_PORT: int = 5432
     DB_NAME: str
     DB_USER: str
-    DB_PASSWORD: str
+    DB_PASSWORD: str = ""
 
     WEBHOOK_HOST: str
     WEBHOOK_PATH: str = "/webhook"
@@ -23,7 +23,7 @@ class Settings(BaseSettings):
     REDIS_PASSWORD: Optional[str] = None
     REDIS_DB: int = 0
 
-    ENVIRONMENT: str = "development"  # development, production, testing
+    ENVIRONMENT: str = "development"
 
     model_config = SettingsConfigDict(
         env_file=".env",
@@ -32,9 +32,16 @@ class Settings(BaseSettings):
         case_sensitive=False,
     )
 
+    def is_admin(self, user_id: int) -> bool:
+        """Admin tekshiruvi"""
+        return user_id in self.ADMIN
+
+    @property
+    def ADMIN_IDS(self) -> list[int]:
+        return self.ADMIN
+
     @property
     def DATABASE_URL(self) -> str:
-        """Async PostgreSQL URL (SQLAlchemy + asyncpg uchun)"""
         return (
             f"postgresql+asyncpg://{self.DB_USER}:{self.DB_PASSWORD}@"
             f"{self.DB_HOST}:{self.DB_PORT}/{self.DB_NAME}"
@@ -42,7 +49,6 @@ class Settings(BaseSettings):
 
     @property
     def DATABASE_URL_SYNC(self) -> str:
-        """Sinxron versiya (agar kerak bo'lsa)"""
         return (
             f"postgresql://{self.DB_USER}:{self.DB_PASSWORD}@"
             f"{self.DB_HOST}:{self.DB_PORT}/{self.DB_NAME}"
@@ -57,5 +63,4 @@ class Settings(BaseSettings):
         return f"redis://{self.REDIS_HOST}:{self.REDIS_PORT}/{self.REDIS_DB}"
 
 
-# Instance yaratish
 settings = Settings()

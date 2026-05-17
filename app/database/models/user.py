@@ -1,6 +1,6 @@
 from sqlalchemy import BigInteger, String, Boolean, ForeignKey, Integer
 from sqlalchemy.orm import Mapped, mapped_column, relationship
-from ..base import Base
+from app.database.base import Base
 
 
 class User(Base):
@@ -20,19 +20,22 @@ class User(Base):
     referral_count: Mapped[int] = mapped_column(Integer, default=0)
 
     # Majburiy obuna holati
-    is_subscribed: Mapped[bool] = mapped_column(
-        Boolean, default=False
-    )  # Barcha kanallarga obuna bo'lganmi?
+    is_subscribed: Mapped[bool] = mapped_column(Boolean, default=False)
 
     # Qo'shimcha
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
 
     # Relationships
     referrer: Mapped["User | None"] = relationship(
-        "User", remote_side=[telegram_id], back_populates="referrals"
+        "User",
+        foreign_keys=[referrer_id],
+        back_populates="referrals",
+        remote_side="User.id",
     )
     referrals: Mapped[list["User"]] = relationship(
-        "User", back_populates="referrer", cascade="all, delete-orphan"
+        "User",
+        foreign_keys="User.referrer_id",
+        back_populates="referrer",
     )
 
     def __repr__(self):

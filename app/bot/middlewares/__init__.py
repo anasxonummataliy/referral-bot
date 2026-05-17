@@ -1,4 +1,4 @@
+from .database import DatabaseMiddleware
 from .subscription import SubscriptionMiddleware
 
-
-SubscriptionMiddleware
+__all__ = ["DatabaseMiddleware", "SubscriptionMiddleware"]
