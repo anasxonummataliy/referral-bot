@@ -369,7 +369,6 @@ async def cmd_start(message: Message, db: AsyncSession):
     contest = await contest_repo.get_active_contest()
 
     # Animatsiya faqat /start (message) uchun
-    await _loading_animation(message)
 
     if not contest:
         await message.answer(
