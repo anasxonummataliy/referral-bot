@@ -1,5 +1,11 @@
 """
-/start handler — obuna tekshiruvi, konkurs matni, kanallar
+/start handler
+
+Muammo tahlili va yechimlar:
+1. Konkurs matni + kanallar — BITTA postda (welcome_message ichida + kanallar inline)
+2. Admin /start bosganida o'z Telegram ID sini ko'radi (telefonda ID topish oson bo'lsin)
+3. setup_bot_commands — har safar /start bosganida yangilanadi
+4. Referral is_new muammosi — qo'shimcha get_by_telegram_id tekshiruvi
 """
 
 import asyncio
@@ -29,7 +35,7 @@ from app.bot.handlers.user.referral_notify import notify_referrer
 logger = logging.getLogger(__name__)
 router = Router()
 
-# ── Animatsiya ────────────────────────────────────────────────────────────────
+# ── Yuklanish animatsiyasi ────────────────────────────────────────────────────
 PROGRESS_FRAMES = [
     "⬜⬜⬜⬜⬜  0%",
     "🟩⬜⬜⬜⬜ 20%",
@@ -58,8 +64,9 @@ async def _loading_animation(message: Message) -> None:
         pass
 
 
+# ── Obuna keyboard ────────────────────────────────────────────────────────────
 def _subscription_keyboard(channels) -> InlineKeyboardMarkup:
-    """Konkurs kanallari ro'yxati + tekshirish tugmasi."""
+    """Kanallar ro'yxati + tekshirish tugmasi."""
     buttons = []
     for ch in channels:
         if ch.username:
@@ -83,24 +90,27 @@ def _subscription_keyboard(channels) -> InlineKeyboardMarkup:
 
 def _build_subscription_text(contest) -> str:
     """
-    Konkurs matni + obuna so'rovi — bitta postda chiqadi.
-    welcome_message bo'lsa uni ishlatadi, yo'q bo'lsa avtomatik matn.
+    Konkurs matni + obuna talabi — bitta postda.
+    welcome_message bo'lsa undan foydalanadi.
     """
     if contest and contest.welcome_message:
         contest_block = contest.welcome_message.strip()
     elif contest:
         contest_block = (
             f"🏆 <b>{contest.title}</b>\n\n"
-            f"🎯 {contest.required_referrals} ta do'st taklif qiling va sovrin yutib oling!"
+            f"🎯 <b>{contest.required_referrals} ta</b> do'st taklif qiling "
+            f"va sovrin yutib oling!"
         )
     else:
-        contest_block = "🏆 <b>Konkurs</b>\n\nTez orada boshlanadi — kuzatib boring!"
+        contest_block = (
+            "👋 <b>Assalomu alaykum!</b>\n\n"
+            "Tez orada yangi konkurs boshlanadi — kuzatib boring!"
+        )
 
     return (
         f"{contest_block}\n\n"
-        f"━━━━━━━━━━━━━━━━━━━\n\n"
-        f"📌 <b>Konursda qatnashishdan avval quyidagi kanallarga a'zo bo'ling:</b>\n\n"
-        f"A'zo bo'lgach <b>✅ A'zo bo'ldim — tekshirish</b> tugmasini bosing."
+        "━━━━━━━━━━━━━━━━━━━\n\n"
+        "📌 <b>Konursda qatnashishdan avval quyidagi kanallarga a'zo bo'ling:</b>"
     )
 
 
@@ -111,26 +121,39 @@ async def show_main_menu(
     contest,
     edit: bool = False,
 ) -> None:
+    """
+    Obunani tekshirib, holatga qarab:
+    - Obuna yo'q → konkurs matni + kanallar bitta postda
+    - Obuna bor → asosiy menyu
+    """
     user_id = message.from_user.id
     sub_service = SubscriptionService(db)
 
     is_subscribed = await sub_service.check_full_subscription(
         bot=message.bot, telegram_id=user_id
     )
+
     if not is_subscribed:
         channels = await sub_service.get_required_channels()
-        keyboard = _subscription_keyboard(channels)
         text = _build_subscription_text(contest)
+        keyboard = _subscription_keyboard(channels)
+
         if edit:
             try:
-                await message.edit_text(text, reply_markup=keyboard, disable_web_page_preview=True)
+                await message.edit_text(
+                    text, reply_markup=keyboard, disable_web_page_preview=True
+                )
             except Exception:
-                await message.answer(text, reply_markup=keyboard, disable_web_page_preview=True)
+                await message.answer(
+                    text, reply_markup=keyboard, disable_web_page_preview=True
+                )
         else:
-            await message.answer(text, reply_markup=keyboard, disable_web_page_preview=True)
+            await message.answer(
+                text, reply_markup=keyboard, disable_web_page_preview=True
+            )
         return
 
-    # Referral ma'lumotlari
+    # Obuna bor — asosiy menyu
     bot_info = await message.bot.get_me()
     bot_username = settings.BOT_USERNAME or bot_info.username
 
@@ -152,7 +175,7 @@ async def show_main_menu(
         f"📊 <b>Sizning natijangiz:</b>\n"
         f"✅ Tasdiqlangan do'stlar: <b>{ref_count} / {target}</b>\n\n"
         f"{bar}\n\n"
-        f"━━━━━━━━━━━━━━━━━━━\n"
+        "━━━━━━━━━━━━━━━━━━━\n"
         f"🔗 <b>Sizning taklif havolangiz:</b>\n"
         f"<code>{referral_link}</code>"
     )
@@ -177,65 +200,75 @@ async def show_main_menu(
 async def cmd_start(message: Message, bot: Bot, db: AsyncSession):
     user_id = message.from_user.id
 
-    # Admin → admin panel
+    # ── ADMIN ─────────────────────────────────────────────────────────────────
     if await is_admin_async(user_id, db):
         name = message.from_user.first_name or "Admin"
-        await message.answer(
-            f"🛡 <b>Xush kelibsiz, {name}!</b>\n\n"
-            "🔑 <b>Admin Panel</b>\n\nQuyidagi bo'limlardan birini tanlang:",
-            reply_markup=admin_main_keyboard(),
-        )
+
+        # Commandlarni o'rnatish
         try:
             await setup_bot_commands(bot, admin_ids=settings.ADMIN_IDS)
         except Exception as e:
             logger.warning(f"setup_bot_commands xatolik: {e}")
+
+        # Admin o'z ID sini ko'radi — telefonda qo'lda izlashga hojat yo'q
+        await message.answer(
+            f"🛡 <b>Xush kelibsiz, {name}!</b>\n\n"
+            f"🆔 <b>Sizning Telegram ID:</b> <code>{user_id}</code>\n\n"
+            "🔑 <b>Admin Panel</b>\n\nQuyidagi bo'limlardan birini tanlang:",
+            reply_markup=admin_main_keyboard(),
+        )
         return
 
-    # Referral payload
+    # ── REFERRAL PAYLOAD ──────────────────────────────────────────────────────
     referrer_id = None
     if message.text and len(message.text.split()) > 1:
-        args = message.text.split()[1]
+        raw = message.text.split(maxsplit=1)[1].strip()
         try:
-            payload = decode_payload(args)
+            payload = decode_payload(raw)
             if payload.isdigit():
                 referrer_id = int(payload)
         except Exception:
-            try:
-                if args.isdigit():
-                    referrer_id = int(args)
-            except Exception:
-                pass
+            if raw.isdigit():
+                referrer_id = int(raw)
 
-    # User yaratish / olish
+    # ── USER YARATISH / OLISH ─────────────────────────────────────────────────
     user_repo = UserRepository(db)
-    _, is_new = await user_repo.get_or_create(
+
+    # is_new ni ishonchli aniqlash: avval bazada bor-yo'qligini tekshiramiz
+    existing = await user_repo.get_by_telegram_id(user_id)
+    is_really_new = existing is None
+
+    _, _ = await user_repo.get_or_create(
         telegram_id=user_id,
         full_name=message.from_user.full_name,
         username=message.from_user.username,
         language_code=message.from_user.language_code,
     )
 
-    # Yangi user + referrer → referral qayd
-    if is_new and referrer_id and referrer_id != user_id:
+    # ── REFERRAL QAYD ─────────────────────────────────────────────────────────
+    # Faqat haqiqatan yangi user + referrer mavjud + o'ziga o'zi emas
+    if is_really_new and referrer_id and referrer_id != user_id:
         ref_service = ReferralService(db)
         registered = await ref_service.process_new_referral(
             new_user_telegram_id=user_id,
             referrer_telegram_id=referrer_id,
         )
         if registered:
+            # Referrerga +1 bildirishnomasi
             await notify_referrer(
-                bot=message.bot,
+                bot=bot,
                 referrer_telegram_id=referrer_id,
                 new_user_name=message.from_user.first_name or "Do'st",
                 db=db,
             )
+            # Shartni bajardimi? → prize link
             await check_and_send_prize(
-                bot=message.bot,
+                bot=bot,
                 referrer_telegram_id=referrer_id,
                 db=db,
             )
 
-    # Konkursni olish
+    # ── KONKURS ───────────────────────────────────────────────────────────────
     contest_repo = ContestRepository(db)
     contest = await contest_repo.get_active_contest()
 
@@ -250,10 +283,11 @@ async def cmd_start(message: Message, bot: Bot, db: AsyncSession):
         )
         return
 
+    # Asosiy menyu (obuna tekshiruvi + konkurs matni ichida)
     await show_main_menu(message, db, contest)
 
 
-# ── Obunani tekshirish ────────────────────────────────────────────────────────
+# ── Obunani tekshirish callback ───────────────────────────────────────────────
 @router.callback_query(F.data == "check_subscription")
 async def check_subscription_cb(callback: CallbackQuery, db: AsyncSession):
     user_id = callback.from_user.id
@@ -289,7 +323,7 @@ async def check_subscription_cb(callback: CallbackQuery, db: AsyncSession):
         )
 
 
-# ── Orqaga ────────────────────────────────────────────────────────────────────
+# ── Orqaga ─────────────────────────────────────────────────────────────────────
 @router.callback_query(F.data == "back_to_main")
 async def back_to_main_cb(callback: CallbackQuery, db: AsyncSession):
     await safe_answer(callback)
@@ -313,18 +347,22 @@ async def back_to_main_cb(callback: CallbackQuery, db: AsyncSession):
     await show_main_menu(callback.message, db, contest, edit=True)
 
 
-# ── /admin command ────────────────────────────────────────────────────────────
+# ── /admin command ─────────────────────────────────────────────────────────────
 @router.message(_Command("admin"))
 async def cmd_admin(message: Message, bot: Bot, db: AsyncSession):
     if not await is_admin_async(message.from_user.id, db):
         return
+    user_id = message.from_user.id
     name = message.from_user.first_name or "Admin"
-    await message.answer(
-        f"🛡 <b>Xush kelibsiz, {name}!</b>\n\n"
-        "🔑 <b>Admin Panel</b>\n\nQuyidagi bo'limlardan birini tanlang:",
-        reply_markup=admin_main_keyboard(),
-    )
+
     try:
         await setup_bot_commands(bot, admin_ids=settings.ADMIN_IDS)
     except Exception as e:
         logger.warning(f"setup_bot_commands xatolik: {e}")
+
+    await message.answer(
+        f"🛡 <b>Xush kelibsiz, {name}!</b>\n\n"
+        f"🆔 <b>Sizning Telegram ID:</b> <code>{user_id}</code>\n\n"
+        "🔑 <b>Admin Panel</b>\n\nQuyidagi bo'limlardan birini tanlang:",
+        reply_markup=admin_main_keyboard(),
+    )

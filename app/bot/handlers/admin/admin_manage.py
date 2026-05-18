@@ -89,9 +89,11 @@ async def admin_add_start(callback: CallbackQuery, state: FSMContext, db: AsyncS
     await callback.message.answer(
         "➕ <b>Yangi Admin Qo'shish</b>\n\n"
         "Telegram ID yoki @username yuboring:\n\n"
+        "📌 <b>ID qanday topiladi?</b>\n"
+        "Shaxs botga /start bossin → ID avtomatik ko'rinadi\n\n"
         "<i>Masalan:</i>\n"
-        "• <code>123456789</code>\n"
-        "• <code>@username</code>\n\n"
+        "• <code>123456789</code> (Telegram ID)\n"
+        "• <code>@username</code> (username)\n\n"
         "/cancel — bekor qilish"
     )
     await state.set_state(AdminManageStates.waiting_new_admin)

@@ -1,7 +1,8 @@
 """
-Yangi referral kelganda referrerga bildirishnoma yuborish.
+Referrerga bildirishnoma — yangi do'st qo'shilganda.
 """
 import logging
+import urllib.parse
 
 from aiogram import Bot
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
@@ -22,8 +23,9 @@ async def notify_referrer(
     db: AsyncSession,
 ) -> None:
     """
-    Referrerga yangi do'st qo'shilgani haqida xabar yuborish.
-    Xabar tarkibi: admin matni (agar bo'lsa) + avtomatik natija + taklif tugmasi.
+    Referrerga yangi do'st qo'shilgani haqida xabar.
+    Matn: admin referral_message (agar bo'lsa) + avtomatik natija.
+    Keyboard: referrerning o'z havolasini ulashish tugmasi.
     """
     contest_repo = ContestRepository(db)
     contest = await contest_repo.get_active_contest()
@@ -36,17 +38,15 @@ async def notify_referrer(
     ref_count = referrer.referral_count
     target = contest.required_referrals if contest else 5
     remaining = max(0, target - ref_count)
-    prize_name = (contest.prize_channel_title or "Prize Kanal") if contest else "Prize Kanal"
+    prize_name = (contest.prize_channel_title or "Sovrin kanal") if contest else "Sovrin kanal"
 
     # ── Matn ─────────────────────────────────────────────────────────────────
     parts = []
 
-    # 1. Admin tomonidan yozilgan maxsus matn (agar mavjud bo'lsa)
     if contest and getattr(contest, "referral_message", None):
         parts.append(contest.referral_message.strip())
         parts.append("")
 
-    # 2. Avtomatik bildirishnoma
     parts.append(f"🎉 <b>{new_user_name}</b> sizning havolangiz orqali qo'shildi!")
     parts.append("")
 
@@ -54,11 +54,10 @@ async def notify_referrer(
         parts.append(f"🏆 <b>{contest.title}</b>")
         parts.append(f"📊 Natijangiz: <b>{ref_count} / {target}</b>")
         parts.append("")
-
         if remaining > 0:
             parts.append(
-                f"🎯 Yana <b>{remaining} ta</b> do'st taklif qiling "
-                f"→ <b>{prize_name}</b> yutib olasiz!"
+                f"🎯 Yana <b>{remaining} ta</b> do'st taklif qiling → "
+                f"<b>{prize_name}</b> yutib olasiz!"
             )
         else:
             parts.append(
@@ -68,22 +67,22 @@ async def notify_referrer(
 
     full_text = "\n".join(parts)
 
-    # ── Keyboard — referrerning o'z deeplinki ────────────────────────────────
+    # ── Keyboard — referrerning deeplinki bilan ulashish ─────────────────────
     bot_info = await bot.get_me()
     bot_username = settings.BOT_USERNAME or bot_info.username
 
-    # Referrerning deeplink havolasi (yangi do'st bu havola orqali kirsa +1 bo'ladi)
     referral_link = create_deep_link(
         username=bot_username,
         payload=str(referrer_telegram_id),
         encode=True,
         link_type="start",
     )
+    encoded_link = urllib.parse.quote(referral_link, safe="")
 
     keyboard = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(
             text="🔗 Yana do'st taklif qilish ↗",
-            url=f"https://t.me/share/url?url={referral_link}",
+            url=f"https://t.me/share/url?url={encoded_link}",
         )],
     ])
 
@@ -95,10 +94,6 @@ async def notify_referrer(
             parse_mode="HTML",
             disable_web_page_preview=True,
         )
-        logger.info(
-            f"Referral notify yuborildi: referrer={referrer_telegram_id}, new_user={new_user_name}"
-        )
+        logger.info(f"notify_referrer OK: referrer={referrer_telegram_id}, new={new_user_name}")
     except Exception as e:
-        logger.error(
-            f"Referral notify xatolik (referrer={referrer_telegram_id}): {e}"
-        )
+        logger.error(f"notify_referrer XATO (referrer={referrer_telegram_id}): {e}")

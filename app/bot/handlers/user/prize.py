@@ -1,14 +1,14 @@
 """
 Prize link yaratish va yuborish.
 
-Muhim:
-- Bot prize kanalda ADMIN bo'lishi shart (Invite Links huquqi bilan)
-- member_limit=1 → faqat 1 kishi kiradi (Telegram tomonidan kafolatlangan)
-- expires_date=None → muddat cheklanmagan (ammo 1 marta ishlatilgach bekor bo'ladi)
-- Webhook muhitida bu to'g'ri ishlaydi — Telegram API tomonidan boshqariladi
+MUHIM — Bir martalik link va webhook:
+- create_chat_invite_link() — bu Telegram API chaqiruvi, polling/webhook bilan bog'liq EMAS
+- member_limit=1 → faqat 1 kishi kiradi (Telegram serveri tomonidan kafolatlangan)
+- Bot prize kanalda ADMIN va "Invite Links" huquqiga ega bo'lishi SHART
+
+Agar link yaratilmayotgan bo'lsa — bot kanalda admin emas yoki huquq yo'q.
 """
 import logging
-from datetime import datetime, timedelta, timezone
 
 from aiogram import Bot
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
@@ -20,66 +20,64 @@ from app.repositories.user_repo import UserRepository
 logger = logging.getLogger(__name__)
 
 
-async def send_prize_link(bot: Bot, user_id: int, contest) -> None:
+async def send_prize_link(bot: Bot, user_id: int, contest) -> bool:
     """
-    1 martalik invite link yaratib, inline button orqali yuborish.
-
-    Talablar:
-    - Bot prize kanalda ADMIN (Invite Links huquqi bilan)
-    - contest.prize_channel_id to'g'ri bo'lishi kerak
+    1 martalik invite link yaratib yuborish.
+    Returns True — muvaffaqiyatli, False — xato.
     """
     if not contest or not contest.prize_channel_id:
-        logger.warning(
-            f"send_prize_link: contest yoki prize_channel_id yo'q (user={user_id})"
-        )
-        return
+        logger.warning(f"send_prize_link: contest yoki channel_id yo'q (user={user_id})")
+        return False
 
     try:
-        # 1 martalik link — faqat 1 kishi kiradi, webhook bilan ham ishlaydi
         invite = await bot.create_chat_invite_link(
             chat_id=contest.prize_channel_id,
-            member_limit=1,               # Faqat 1 kishi
-            creates_join_request=False,   # To'g'ridan kiradi
-            # expire_date ni o'rnatmaymiz — link ishlatilguncha amal qiladi
+            member_limit=1,              # Faqat 1 kishi kiradi
+            creates_join_request=False,  # To'g'ridan kiradi
         )
+    except Exception as e:
+        logger.error(
+            f"create_chat_invite_link XATO (user={user_id}, "
+            f"channel={contest.prize_channel_id}): {e}"
+        )
+        return False
 
-        channel_title = contest.prize_channel_title or "Sovrin Kanal"
+    channel_title = contest.prize_channel_title or "Sovrin kanal"
 
-        keyboard = InlineKeyboardMarkup(inline_keyboard=[[
-            InlineKeyboardButton(
-                text=f"🎁 {channel_title} — Kirish",
-                url=invite.invite_link,
-            )
-        ]])
+    keyboard = InlineKeyboardMarkup(inline_keyboard=[[
+        InlineKeyboardButton(
+            text=f"🎁 {channel_title} — Kirish",
+            url=invite.invite_link,
+        )
+    ]])
 
+    try:
         await bot.send_message(
             chat_id=user_id,
             text=(
-                f"🏆 <b>Tabriklaymiz!</b>\n\n"
+                "🏆 <b>Tabriklaymiz!</b>\n\n"
                 f"Siz <b>{contest.required_referrals} ta</b> do'st taklif qildingiz "
-                f"va sovrinni yutib oldingiz! 🎉\n\n"
-                f"⬇️ Quyidagi tugmani bosib kanalga kiring:\n\n"
-                f"⚠️ <b>Diqqat:</b> Bu havola faqat <b>1 marta</b> ishlaydi!\n"
-                f"Uni boshqa birovga bermang — kirish huquqi faqat <b>sizga</b>."
+                "va sovrinni yutib oldingiz! 🎉\n\n"
+                "⬇️ Quyidagi tugmani bosib kanalga kiring:\n\n"
+                "⚠️ <b>Diqqat:</b> Bu havola faqat <b>1 marta</b> ishlaydi!\n"
+                "Uni boshqa birovga bermang — kirish huquqi faqat <b>sizga</b>."
             ),
             reply_markup=keyboard,
             parse_mode="HTML",
         )
         logger.info(f"✅ Prize link yuborildi: user={user_id}, contest={contest.id}")
-
+        return True
     except Exception as e:
-        logger.error(
-            f"❌ Prize link xatolik (user={user_id}, channel={contest.prize_channel_id}): {e}"
-        )
-        # Xatolik bo'lsa adminlarga xabar yuborish mumkin (kelajakda)
+        logger.error(f"send_message XATO (user={user_id}): {e}")
+        return False
 
 
 async def check_and_send_prize(
     bot: Bot, referrer_telegram_id: int, db: AsyncSession
 ) -> bool:
     """
-    Referrer shartni bajardimi tekshirish.
-    Aynan required_referrals ga yetganda (== tekshiruvi) bir martalik prize link yuborish.
+    Referrer shartni bajardimi? — tekshirish va prize yuborish.
+    == tekshiruvi: aynan required_referrals ga yetganida (qayta yubormasligi uchun).
     """
     contest_repo = ContestRepository(db)
     contest = await contest_repo.get_active_contest()
@@ -91,8 +89,6 @@ async def check_and_send_prize(
     if not referrer:
         return False
 
-    # == tekshiruvi: qayta-qayta yuborilmasligi uchun
     if referrer.referral_count == contest.required_referrals:
-        await send_prize_link(bot, referrer_telegram_id, contest)
-        return True
+        return await send_prize_link(bot, referrer_telegram_id, contest)
     return False

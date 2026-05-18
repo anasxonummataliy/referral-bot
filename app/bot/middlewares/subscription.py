@@ -1,21 +1,28 @@
 """
-Subscription middleware — foydalanuvchi barcha kanallarga obuna bo'lganligini tekshiradi.
-Admin, /start va check_subscription callbacki bundan mustasno.
+Subscription middleware.
+
+Qoidalar:
+- /start command → o'tkazib yuboradi (start handler o'zi tekshiradi)
+- check_subscription callback → o'tkazib yuboradi (u ham o'zi tekshiradi)
+- Admin → o'tkazib yuboradi
+- Qolgan hammasi → obuna tekshiruvi
+
+Obuna yo'q bo'lsa — konkurs matni + kanallar bitta postda.
 """
-from aiogram import BaseMiddleware
-from aiogram.types import Message, CallbackQuery, InlineKeyboardMarkup, InlineKeyboardButton
+import re
+import logging
 from typing import Callable, Dict, Any
 
+from aiogram import BaseMiddleware
+from aiogram.types import Message, CallbackQuery, InlineKeyboardMarkup, InlineKeyboardButton
 from sqlalchemy.ext.asyncio import AsyncSession
+
 from app.services.subscription_service import SubscriptionService
 from app.core.config import settings
 
+logger = logging.getLogger(__name__)
 
-# Middleware ishlamaydigan callbacklar
 _SKIP_CALLBACKS = {"check_subscription"}
-
-# Middleware ishlamaydigan commandlar
-_SKIP_COMMANDS = {"/start"}
 
 
 class SubscriptionMiddleware(BaseMiddleware):
@@ -31,7 +38,7 @@ class SubscriptionMiddleware(BaseMiddleware):
 
         user_id = event.from_user.id
 
-        # Admin — tekshirishsiz o'tkazish
+        # Admin — tekshirishsiz
         if settings.is_admin(user_id):
             return await handler(event, data)
 
@@ -39,12 +46,13 @@ class SubscriptionMiddleware(BaseMiddleware):
         if not db:
             return await handler(event, data)
 
-        # /start va check_subscription — o'tkazish (ular o'zi tekshiradi)
+        # /start — start handler o'zi tekshiradi
         if isinstance(event, Message):
             text = (event.text or "").strip()
             if text.startswith("/start"):
                 return await handler(event, data)
 
+        # check_subscription — handler o'zi tekshiradi
         if isinstance(event, CallbackQuery) and event.data in _SKIP_CALLBACKS:
             return await handler(event, data)
 
@@ -56,13 +64,15 @@ class SubscriptionMiddleware(BaseMiddleware):
         if is_subscribed:
             return await handler(event, data)
 
-        await self._send_subscription_message(event, db, data["bot"])
+        # Obuna yo'q — konkurs matni + kanallar
+        await self._send_subscription_prompt(event, db)
         return
 
-    async def _send_subscription_message(
-        self, event: Message | CallbackQuery, db: AsyncSession, bot
-    ):
-        """Majburiy obuna xabarini yuborish."""
+    async def _send_subscription_prompt(
+        self,
+        event: Message | CallbackQuery,
+        db: AsyncSession,
+    ) -> None:
         from app.repositories.contest_repo import ContestRepository
 
         sub_service = SubscriptionService(db)
@@ -71,30 +81,26 @@ class SubscriptionMiddleware(BaseMiddleware):
         contest_repo = ContestRepository(db)
         contest = await contest_repo.get_active_contest()
 
-        # Konkurs matni
+        # Matn
         if contest and contest.welcome_message:
-            import re
-            contest_block = re.sub(r"<[^>]+>", "", contest.welcome_message).strip()
             text = (
                 f"{contest.welcome_message.strip()}\n\n"
-                f"━━━━━━━━━━━━━━━━━━━\n\n"
-                f"📌 <b>Konursda qatnashishdan avval quyidagi kanallarga a'zo bo'ling:</b>\n\n"
-                f"A'zo bo'lgach <b>✅ A'zo bo'ldim — tekshirish</b> tugmasini bosing."
+                "━━━━━━━━━━━━━━━━━━━\n\n"
+                "📌 <b>Konursda qatnashishdan avval quyidagi kanallarga a'zo bo'ling:</b>"
             )
         elif contest:
             text = (
                 f"🏆 <b>{contest.title}</b>\n\n"
-                f"━━━━━━━━━━━━━━━━━━━\n\n"
-                f"📌 <b>Konursda qatnashishdan avval quyidagi kanallarga a'zo bo'ling:</b>\n\n"
-                f"A'zo bo'lgach <b>✅ A'zo bo'ldim — tekshirish</b> tugmasini bosing."
+                "━━━━━━━━━━━━━━━━━━━\n\n"
+                "📌 <b>Konursda qatnashishdan avval quyidagi kanallarga a'zo bo'ling:</b>"
             )
         else:
             text = (
-                f"👋 <b>Assalomu alaykum!</b>\n\n"
-                f"📌 Botdan foydalanish uchun quyidagi kanallarga a'zo bo'ling:\n\n"
-                f"A'zo bo'lgach <b>✅ A'zo bo'ldim — tekshirish</b> tugmasini bosing."
+                "👋 <b>Assalomu alaykum!</b>\n\n"
+                "📌 <b>Botdan foydalanish uchun quyidagi kanallarga a'zo bo'ling:</b>"
             )
 
+        # Keyboard
         buttons = []
         for ch in channels:
             if ch.username:
@@ -106,14 +112,12 @@ class SubscriptionMiddleware(BaseMiddleware):
             buttons.append([
                 InlineKeyboardButton(text=f"{icon} {ch.title}", url=link)
             ])
-
         buttons.append([
             InlineKeyboardButton(
                 text="✅ A'zo bo'ldim — tekshirish",
                 callback_data="check_subscription",
             )
         ])
-
         keyboard = InlineKeyboardMarkup(inline_keyboard=buttons)
 
         try:
@@ -130,5 +134,5 @@ class SubscriptionMiddleware(BaseMiddleware):
                     await event.message.answer(
                         text, reply_markup=keyboard, disable_web_page_preview=True
                     )
-        except Exception:
-            pass
+        except Exception as e:
+            logger.error(f"_send_subscription_prompt xato: {e}")

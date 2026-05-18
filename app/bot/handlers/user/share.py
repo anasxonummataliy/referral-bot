@@ -1,7 +1,13 @@
 """
-Havolani ulashish — do'stga taklif xabari + deeplink inline button
+Havolani ulashish — konkurs matni + deeplink inline button
+
+Do'stga yuboriladigan xabarda:
+- Konkurs matni (welcome_message yoki avtomatik)
+- "Qatnashish uchun quyidagi tugmani bosing" matni
+- Inline button → botga deeplink (bosganida /start?start=REFERRER_ID)
 """
 import logging
+import re
 import urllib.parse
 
 from aiogram import Router, F
@@ -10,7 +16,6 @@ from aiogram.types import (
     InlineKeyboardMarkup, InlineKeyboardButton,
 )
 from aiogram.filters import Command
-from aiogram.utils.deep_linking import create_deep_link
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
@@ -22,36 +27,40 @@ logger = logging.getLogger(__name__)
 router = Router()
 
 
-def _build_invite_text(contest) -> str:
+def _strip_html(text: str) -> str:
+    """HTML teglarni olib tashlash — Telegram share URLsi uchun."""
+    return re.sub(r"<[^>]+>", "", text).strip()
+
+
+def _build_share_text(contest) -> str:
     """
-    Do'stga yuboriladigan taklif matni.
-    Telegram share URL ichiga kiradi — HTML ishlamaydi, plain text.
+    Do'stga yuboriladigan taklif matni (plain text, HTML yo'q).
+    Telegram share URL'da ko'rinadi.
     """
     if contest and contest.welcome_message:
-        # welcome_message dan HTML teglarini tozalaymiz
-        import re
-        clean = re.sub(r"<[^>]+>", "", contest.welcome_message).strip()
-        contest_block = clean
+        contest_block = _strip_html(contest.welcome_message)
     elif contest:
         contest_block = (
             f"🏆 {contest.title}\n\n"
-            f"🎯 {contest.required_referrals} ta do'st taklif qil va sovrin yutib ol!"
+            f"🎯 {contest.required_referrals} ta do'st taklif qil — sovrin yutib ol!"
         )
     else:
-        contest_block = "🏆 Ajoyib konkurs!"
+        contest_block = "🏆 Ajoyib konkurs boshlanmoqda!"
 
     return (
         f"{contest_block}\n\n"
-        f"👇 Qatnashish uchun quyidagi tugmani bosing:"
+        "👇 Qatnashish uchun quyidagi tugmani bosing:"
     )
 
 
-def _share_keyboard(referral_link: str, invite_text: str) -> InlineKeyboardMarkup:
+def _build_share_keyboard(referral_link: str, share_text: str) -> InlineKeyboardMarkup:
     """
-    Ulashish tugmasi — Telegram share URL (deeplink bilan).
+    Ulashish tugmasi — Telegram share URL (deeplink + matn birgalikda).
+    Do'st tugmani bosganida: Telegram share dialog ochiladi.
+    Do'st havolani bosganida: bot /start?start=REFERRER_ID qabul qiladi.
     """
     encoded_url = urllib.parse.quote(referral_link, safe="")
-    encoded_text = urllib.parse.quote(invite_text, safe="")
+    encoded_text = urllib.parse.quote(share_text, safe="")
     share_url = f"https://t.me/share/url?url={encoded_url}&text={encoded_text}"
 
     return InlineKeyboardMarkup(inline_keyboard=[
@@ -77,15 +86,17 @@ async def share_link_cb(callback: CallbackQuery, db: AsyncSession):
     contest = await contest_repo.get_active_contest()
     target = contest.required_referrals if contest else 5
 
-    invite_text = _build_invite_text(contest)
-    keyboard = _share_keyboard(referral_link, invite_text)
+    share_text = _build_share_text(contest)
+    keyboard = _build_share_keyboard(referral_link, share_text)
 
     text = (
-        f"🔗 <b>Sizning taklif havolangiz:</b>\n\n"
+        "🔗 <b>Taklif havolangiz tayyor!</b>\n\n"
         f"<code>{referral_link}</code>\n\n"
-        f"📌 Quyidagi <b>📤 Do'stlarga ulashish</b> tugmasini bosing.\n"
-        f"Do'stingiz havolani bosib botga kirganida sizga <b>+1</b> qo'shiladi.\n\n"
-        f"🏅 Maqsad: <b>{target} ta</b> do'st → sovrin yutib olasiz!"
+        "📌 <b>Qanday ishlaydi?</b>\n"
+        "1️⃣ Quyidagi tugmani bosib do'stlaringizga yuboring\n"
+        "2️⃣ Do'stingiz havolani bosib botga kiradi\n"
+        "3️⃣ Sizga avtomatik <b>+1</b> qo'shiladi\n\n"
+        f"🏅 Maqsad: <b>{target} ta</b> do'st → sovrinni yutib olasiz!"
     )
 
     await callback.message.edit_text(
@@ -108,16 +119,13 @@ async def cmd_referral(message: Message, db: AsyncSession):
     contest = await contest_repo.get_active_contest()
     target = contest.required_referrals if contest else 5
 
-    invite_text = _build_invite_text(contest)
-    keyboard = _share_keyboard(referral_link, invite_text)
-
-    text = (
-        f"🔗 <b>Sizning taklif havolangiz:</b>\n\n"
-        f"<code>{referral_link}</code>\n\n"
-        f"📌 <b>📤 Do'stlarga ulashish</b> tugmasini bosib yuboring.\n\n"
-        f"🏅 Maqsad: <b>{target} ta</b> do'st → sovrin yutib olasiz!"
-    )
+    share_text = _build_share_text(contest)
+    keyboard = _build_share_keyboard(referral_link, share_text)
 
     await message.answer(
-        text, reply_markup=keyboard, disable_web_page_preview=True
+        f"🔗 <b>Sizning taklif havolangiz:</b>\n\n"
+        f"<code>{referral_link}</code>\n\n"
+        f"🏅 Maqsad: <b>{target} ta</b> do'st → sovrinni yutib olasiz!",
+        reply_markup=keyboard,
+        disable_web_page_preview=True,
     )
