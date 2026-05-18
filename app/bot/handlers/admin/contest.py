@@ -58,8 +58,11 @@ async def _show_contest_menu(target, db: AsyncSession, edit: bool = False):
         )
         keyboard = InlineKeyboardMarkup(inline_keyboard=[
             [
-                InlineKeyboardButton(text="✏️ Xabarni o'zgartirish", callback_data="contest_edit_msg"),
-                InlineKeyboardButton(text="🔢 Ref sonini o'zgartirish", callback_data="contest_edit_refs"),
+                InlineKeyboardButton(text="✏️ Kirish xabari", callback_data="contest_edit_msg"),
+                InlineKeyboardButton(text="🔢 Ref soni", callback_data="contest_edit_refs"),
+            ],
+            [
+                InlineKeyboardButton(text="📣 Referral xabari", callback_data="contest_edit_referral_msg"),
             ],
             [
                 InlineKeyboardButton(text="🎁 Prize kanal qo'shish", callback_data="contest_set_prize"),
@@ -434,6 +437,50 @@ async def contest_prize_channel_save(message: Message, state: FSMContext, db: As
         f"🆔 ID: <code>{chat.id}</code>\n\n"
         f"Endi foydalanuvchilar <b>{contest.required_referrals} ta</b> referral "
         f"qilganda avtomatik 1 martalik link oladi! 🎉",
+        reply_markup=InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(text="🔙 Konkurs", callback_data="adm_contest")]
+        ])
+    )
+
+
+# ── Referral xabari (yangi do'st qo'shilganda boradigan matn) ────────────────
+class ReferralMsgStates(StatesGroup):
+    waiting_msg = State()
+
+
+@router.callback_query(F.data == "contest_edit_referral_msg")
+async def edit_referral_msg_start(callback: CallbackQuery, state: FSMContext, db: AsyncSession):
+    if not await is_admin_async(callback.from_user.id, db):
+        return
+    await callback.answer()
+    await callback.message.answer(
+        "✏️ <b>Referral xabarini o'zgartirish</b>\n\n"
+        "Bu xabar yangi do'st qo'shilganda referrerga yuboriladi.\n"
+        "Xabar ostida avtomatik <b>konkurs ma'lumoti</b> va <b>taklif tugmasi</b> qo'shiladi.\n\n"
+        "Faqat Telegram HTML teglari: <b>bold</b>, <i>italic</i>, <code>code</code>\n\n"
+        "/skip — xabarsiz (faqat konkurs ma'lumoti chiqadi)\n"
+        "/cancel — bekor qilish"
+    )
+    await state.set_state(ReferralMsgStates.waiting_msg)
+
+
+@router.message(ReferralMsgStates.waiting_msg)
+async def save_referral_msg(message: Message, state: FSMContext, db: AsyncSession):
+    if not await is_admin_async(message.from_user.id, db):
+        return
+    contest_repo = ContestRepository(db)
+    contest = await contest_repo.get_active_contest()
+    if not contest:
+        await message.answer("❌ Aktiv konkurs topilmadi.")
+        await state.clear()
+        return
+
+    txt = (message.text or "").strip()
+    new_msg = None if txt == "/skip" else txt
+    await contest_repo.update(contest.id, referral_message=new_msg)
+    await state.clear()
+    await message.answer(
+        "✅ Referral xabari yangilandi!",
         reply_markup=InlineKeyboardMarkup(inline_keyboard=[
             [InlineKeyboardButton(text="🔙 Konkurs", callback_data="adm_contest")]
         ])

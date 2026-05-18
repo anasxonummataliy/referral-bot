@@ -14,6 +14,9 @@ class Contest(Base):
     # Boshlanish xabari (majburiy kanallardan OLDIN chiqadi)
     welcome_message: Mapped[str | None] = mapped_column(Text, nullable=True)
 
+    # Yangi referral kelganda referrerga boriladigan matn (admin yozadi)
+    referral_message: Mapped[str | None] = mapped_column(Text, nullable=True)
+
     # Nechtadan referral qilsa prize_channel linki beriladi
     required_referrals: Mapped[int] = mapped_column(Integer, default=5)
 

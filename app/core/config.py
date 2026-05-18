@@ -10,7 +10,7 @@ class Settings(BaseSettings):
 
     # PostgreSQL
     DB_HOST: str = "localhost"
-    DB_PORT: int = 5432
+    DB_PORT: int = 5435
     DB_NAME: str
     DB_USER: str
     DB_PASSWORD: str = ""

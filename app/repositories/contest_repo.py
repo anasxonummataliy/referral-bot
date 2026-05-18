@@ -51,3 +51,13 @@ class ContestRepository(BaseRepository[Contest]):
         )
         await self.session.execute(stmt)
         await self.session.commit()
+
+    async def update(self, contest_id: int, **kwargs) -> None:
+        """Konkurs maydonlarini yangilash"""
+        stmt = (
+            update(Contest)
+            .where(Contest.id == contest_id)
+            .values(**kwargs)
+        )
+        await self.session.execute(stmt)
+        await self.session.commit()
