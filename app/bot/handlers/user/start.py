@@ -90,28 +90,19 @@ def _subscription_keyboard(channels) -> InlineKeyboardMarkup:
 
 def _build_subscription_text(contest) -> str:
     """
-    Konkurs matni + obuna talabi — bitta postda.
+    Konkurs matni — bitta postda.
     welcome_message bo'lsa undan foydalanadi.
     """
     if contest and contest.welcome_message:
-        contest_block = contest.welcome_message.strip()
+        return contest.welcome_message.strip()
     elif contest:
-        contest_block = (
+        return (
             f"🏆 <b>{contest.title}</b>\n\n"
             f"🎯 <b>{contest.required_referrals} ta</b> do'st taklif qiling "
             f"va sovrin yutib oling!"
         )
     else:
-        contest_block = (
-            "👋 <b>Assalomu alaykum!</b>\n\n"
-            "Tez orada yangi konkurs boshlanadi — kuzatib boring!"
-        )
-
-    return (
-        f"{contest_block}\n\n"
-        "━━━━━━━━━━━━━━━━━━━\n\n"
-        "📌 <b>Konursda qatnashishdan avval quyidagi kanallarga a'zo bo'ling:</b>"
-    )
+        return "👋 <b>Assalomu alaykum!</b>\n\nTez orada yangi konkurs boshlanadi — kuzatib boring!"
 
 
 # ── Asosiy menyu ──────────────────────────────────────────────────────────────
@@ -137,20 +128,23 @@ async def show_main_menu(
         channels = await sub_service.get_required_channels()
         text = _build_subscription_text(contest)
         keyboard = _subscription_keyboard(channels)
+        photo_id = getattr(contest, "welcome_photo_file_id", None) if contest else None
 
         if edit:
+            # edit_text / edit rasm qo'llab-quvvatlamaydi, shuning uchun delete + send
             try:
-                await message.edit_text(
-                    text, reply_markup=keyboard, disable_web_page_preview=True
-                )
+                await message.delete()
             except Exception:
-                await message.answer(
-                    text, reply_markup=keyboard, disable_web_page_preview=True
-                )
+                pass
+            if photo_id:
+                await message.answer_photo(photo_id, caption=text, reply_markup=keyboard)
+            else:
+                await message.answer(text, reply_markup=keyboard, disable_web_page_preview=True)
         else:
-            await message.answer(
-                text, reply_markup=keyboard, disable_web_page_preview=True
-            )
+            if photo_id:
+                await message.answer_photo(photo_id, caption=text, reply_markup=keyboard)
+            else:
+                await message.answer(text, reply_markup=keyboard, disable_web_page_preview=True)
         return
 
     # Obuna bor — asosiy menyu

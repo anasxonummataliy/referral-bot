@@ -15,6 +15,9 @@ def main_menu_keyboard() -> InlineKeyboardMarkup:
             InlineKeyboardButton(text="📜 Shartlar",  callback_data="terms"),
             InlineKeyboardButton(text="❓ Yordam",    callback_data="help"),
         ],
+        [
+            InlineKeyboardButton(text="✉️ Adminlarga yozish", callback_data="contact_admin"),
+        ],
     ])
 
 

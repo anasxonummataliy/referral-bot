@@ -26,6 +26,7 @@ class ContestRepository(BaseRepository[Contest]):
         title: str,
         welcome_message: str | None,
         required_referrals: int,
+        welcome_photo_file_id: str | None = None,
         prize_channel_id: int | None = None,
         prize_channel_title: str | None = None,
     ) -> Contest:
@@ -34,6 +35,7 @@ class ContestRepository(BaseRepository[Contest]):
         return await self.create(
             title=title,
             welcome_message=welcome_message,
+            welcome_photo_file_id=welcome_photo_file_id,
             required_referrals=required_referrals,
             prize_channel_id=prize_channel_id,
             prize_channel_title=prize_channel_title,

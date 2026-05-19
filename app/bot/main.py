@@ -59,7 +59,6 @@ async def on_startup(bot: Bot) -> None:
         await setup_bot_commands(bot, admin_ids=all_admin_ids)
         logger.info(f"✅ Bot commandlari o'rnatildi. Adminlar: {all_admin_ids}")
     except Exception as e:
-        # Birinchi ishga tushishda DB tayyor bo'lmasligi mumkin — xato yutiriladi
         logger.warning(f"on_startup setup_bot_commands xatolik: {e}")
         # Faqat .env adminlari bilan urinib ko'ramiz
         try:

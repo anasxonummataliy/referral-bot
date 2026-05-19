@@ -144,6 +144,7 @@ async def contest_title(message: Message, state: FSMContext, db: AsyncSession):
         "📝 <b>2-qadam:</b> Kirish xabarini yuboring\n\n"
         "Bu xabar foydalanuvchi /start bosganida <b>birinchi</b> ko'rinadi "
         "(majburiy kanallardan ham oldin).\n\n"
+        "📸 <b>Rasm yuborish mumkin</b> — caption (matn) ham qo'shing yoki shunchaki rasm yuboring.\n"
         "HTML teglari ishlaydi: <b>bold</b>, <i>italic</i>, <code>code</code>\n\n"
         "/skip — xabarsiz davom etish"
     )
@@ -156,10 +157,19 @@ async def contest_welcome(message: Message, state: FSMContext, db: AsyncSession)
         return
 
     welcome = None
+    photo_file_id = None
+
     if message.text and message.text.strip() != "/skip":
         welcome = message.text.strip()
+    elif message.photo:
+        # Rasm + caption (ixtiyoriy)
+        photo_file_id = message.photo[-1].file_id
+        if message.caption and message.caption.strip() != "/skip":
+            welcome = message.caption.strip()
+    elif message.text and message.text.strip() == "/skip":
+        pass  # welcome va photo_file_id = None qoladi
 
-    await state.update_data(welcome=welcome)
+    await state.update_data(welcome=welcome, photo_file_id=photo_file_id)
     await message.answer(
         "✅ Xabar saqlandi!\n\n"
         "🔢 <b>3-qadam:</b> Nechta referral qilganda prize kanal berilsin?\n\n"
@@ -185,6 +195,7 @@ async def contest_refs(message: Message, state: FSMContext, db: AsyncSession):
     contest = await contest_repo.create_contest(
         title=data["title"],
         welcome_message=data.get("welcome"),
+        welcome_photo_file_id=data.get("photo_file_id"),
         required_referrals=required_refs,
     )
 
@@ -231,8 +242,19 @@ async def contest_save_new_msg(message: Message, state: FSMContext, db: AsyncSes
         await message.answer("❌ Aktiv konkurs topilmadi.")
         await state.clear()
         return
-    new_msg = None if (message.text or "").strip() == "/skip" else (message.text or "").strip()
-    await contest_repo.update(contest.id, welcome_message=new_msg)
+
+    new_msg = None
+    new_photo = None
+
+    if message.text and message.text.strip() != "/skip":
+        new_msg = message.text.strip()
+    elif message.photo:
+        new_photo = message.photo[-1].file_id
+        if message.caption and message.caption.strip() != "/skip":
+            new_msg = message.caption.strip()
+    # /skip → ikkalasi ham None
+
+    await contest_repo.update(contest.id, welcome_message=new_msg, welcome_photo_file_id=new_photo)
     await state.clear()
     await message.answer(
         "✅ Kirish xabari yangilandi!",

@@ -51,20 +51,33 @@ async def send_prize_link(bot: Bot, user_id: int, contest) -> bool:
         )
     ]])
 
+    prize_text = (
+        "🏆 <b>Tabriklaymiz!</b>\n\n"
+        f"Siz <b>{contest.required_referrals} ta</b> do'st taklif qildingiz "
+        "va sovrinni yutib oldingiz! 🎉\n\n"
+        "⬇️ Quyidagi tugmani bosib kanalga kiring:\n\n"
+        "⚠️ <b>Diqqat:</b> Bu havola faqat <b>1 marta</b> ishlaydi!\n"
+        "Uni boshqa birovga bermang — kirish huquqi faqat <b>sizga</b>."
+    )
+
+    photo_id = getattr(contest, "welcome_photo_file_id", None)
+
     try:
-        await bot.send_message(
-            chat_id=user_id,
-            text=(
-                "🏆 <b>Tabriklaymiz!</b>\n\n"
-                f"Siz <b>{contest.required_referrals} ta</b> do'st taklif qildingiz "
-                "va sovrinni yutib oldingiz! 🎉\n\n"
-                "⬇️ Quyidagi tugmani bosib kanalga kiring:\n\n"
-                "⚠️ <b>Diqqat:</b> Bu havola faqat <b>1 marta</b> ishlaydi!\n"
-                "Uni boshqa birovga bermang — kirish huquqi faqat <b>sizga</b>."
-            ),
-            reply_markup=keyboard,
-            parse_mode="HTML",
-        )
+        if photo_id:
+            await bot.send_photo(
+                chat_id=user_id,
+                photo=photo_id,
+                caption=prize_text,
+                reply_markup=keyboard,
+                parse_mode="HTML",
+            )
+        else:
+            await bot.send_message(
+                chat_id=user_id,
+                text=prize_text,
+                reply_markup=keyboard,
+                parse_mode="HTML",
+            )
         logger.info(f"✅ Prize link yuborildi: user={user_id}, contest={contest.id}")
         return True
     except Exception as e:

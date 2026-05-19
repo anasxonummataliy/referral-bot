@@ -24,6 +24,7 @@ USER_COMMANDS = [
     BotCommand(command="start",    description="🏠 Bosh menyu"),
     BotCommand(command="referral", description="🔗 Mening taklif havolam"),
     BotCommand(command="mystats",  description="📊 Mening natijam"),
+    BotCommand(command="contact",  description="✉️ Adminlarga yozish"),
     BotCommand(command="help",     description="❓ Yordam"),
 ]
 

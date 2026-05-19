@@ -78,22 +78,41 @@ async def notify_referrer(
         link_type="start",
     )
     encoded_link = urllib.parse.quote(referral_link, safe="")
+    # Share text — xabar bilan birga
+    share_text = urllib.parse.quote(
+        f"{full_text}\n\n👇 Qatnashish uchun bosing:",
+        safe=""
+    )
 
     keyboard = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(
-            text="🔗 Yana do'st taklif qilish ↗",
-            url=f"https://t.me/share/url?url={encoded_link}",
+            text="🔗 Havolangiz",
+            url=referral_link,
+        )],
+        [InlineKeyboardButton(
+            text="📤 Do'stlarga ulashish ↗",
+            url=f"https://t.me/share/url?url={encoded_link}&text={share_text}",
         )],
     ])
 
     try:
-        await bot.send_message(
-            chat_id=referrer_telegram_id,
-            text=full_text,
-            reply_markup=keyboard,
-            parse_mode="HTML",
-            disable_web_page_preview=True,
-        )
+        photo_id = getattr(contest, "welcome_photo_file_id", None) if contest else None
+        if photo_id:
+            await bot.send_photo(
+                chat_id=referrer_telegram_id,
+                photo=photo_id,
+                caption=full_text,
+                reply_markup=keyboard,
+                parse_mode="HTML",
+            )
+        else:
+            await bot.send_message(
+                chat_id=referrer_telegram_id,
+                text=full_text,
+                reply_markup=keyboard,
+                parse_mode="HTML",
+                disable_web_page_preview=True,
+            )
         logger.info(f"notify_referrer OK: referrer={referrer_telegram_id}, new={new_user_name}")
     except Exception as e:
         logger.error(f"notify_referrer XATO (referrer={referrer_telegram_id}): {e}")

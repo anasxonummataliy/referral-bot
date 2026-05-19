@@ -38,11 +38,15 @@ class SubscriptionMiddleware(BaseMiddleware):
 
         user_id = event.from_user.id
 
-        # Admin — tekshirishsiz
+        # Admin — tekshirishsiz (.env + DB)
         if settings.is_admin(user_id):
             return await handler(event, data)
-
         db: AsyncSession = data.get("db")
+        if db:
+            from app.bot.handlers.admin.base import is_admin_async
+            if await is_admin_async(user_id, db):
+                return await handler(event, data)
+
         if not db:
             return await handler(event, data)
 
@@ -83,22 +87,13 @@ class SubscriptionMiddleware(BaseMiddleware):
 
         # Matn
         if contest and contest.welcome_message:
-            text = (
-                f"{contest.welcome_message.strip()}\n\n"
-                "━━━━━━━━━━━━━━━━━━━\n\n"
-                "📌 <b>Konursda qatnashishdan avval quyidagi kanallarga a'zo bo'ling:</b>"
-            )
+            text = contest.welcome_message.strip()
         elif contest:
-            text = (
-                f"🏆 <b>{contest.title}</b>\n\n"
-                "━━━━━━━━━━━━━━━━━━━\n\n"
-                "📌 <b>Konursda qatnashishdan avval quyidagi kanallarga a'zo bo'ling:</b>"
-            )
+            text = f"🏆 <b>{contest.title}</b>"
         else:
-            text = (
-                "👋 <b>Assalomu alaykum!</b>\n\n"
-                "📌 <b>Botdan foydalanish uchun quyidagi kanallarga a'zo bo'ling:</b>"
-            )
+            text = "👋 <b>Assalomu alaykum!</b>"
+
+        photo_id = getattr(contest, "welcome_photo_file_id", None) if contest else None
 
         # Keyboard
         buttons = []
@@ -122,17 +117,18 @@ class SubscriptionMiddleware(BaseMiddleware):
 
         try:
             if isinstance(event, Message):
-                await event.answer(
-                    text, reply_markup=keyboard, disable_web_page_preview=True
-                )
+                if photo_id:
+                    await event.answer_photo(photo_id, caption=text, reply_markup=keyboard)
+                else:
+                    await event.answer(text, reply_markup=keyboard, disable_web_page_preview=True)
             elif isinstance(event, CallbackQuery):
                 try:
-                    await event.message.edit_text(
-                        text, reply_markup=keyboard, disable_web_page_preview=True
-                    )
+                    await event.message.delete()
                 except Exception:
-                    await event.message.answer(
-                        text, reply_markup=keyboard, disable_web_page_preview=True
-                    )
+                    pass
+                if photo_id:
+                    await event.message.answer_photo(photo_id, caption=text, reply_markup=keyboard)
+                else:
+                    await event.message.answer(text, reply_markup=keyboard, disable_web_page_preview=True)
         except Exception as e:
             logger.error(f"_send_subscription_prompt xato: {e}")
