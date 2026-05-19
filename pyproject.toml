@@ -11,6 +11,7 @@ dependencies = [
     "greenlet>=3.5.0",
     "pydantic>=2.13.4",
     "pydantic-settings>=2.14.1",
+    "pytest>=9.0.3",
     "sqlalchemy>=2.0.49",
     "uvicorn>=0.47.0",
 ]
@@ -27,6 +28,13 @@ dev = [
     "black>=24.0.0",
 ]
 
+
+[tool.setuptools]
+package-dir = {"" = "."}
+
+[tool.setuptools.packages.find]
+include = ["app*", "api*"]
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 python_files = "test_*.py"
@@ -42,12 +50,6 @@ addopts = [
     "--cov=api",
     "--cov-report=html",
     "--cov-report=term-missing",
-]
-markers = [
-    "asyncio: marks tests as async",
-    "unit: unit tests",
-    "integration: integration tests",
-    "slow: slow running tests",
 ]
 
 [tool.ruff]
