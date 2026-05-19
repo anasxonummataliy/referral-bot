@@ -1,0 +1,92 @@
+name: Tests
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: referral_user
+          POSTGRES_PASSWORD: test_password
+          POSTGRES_DB: referral_bot_test
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+
+      redis:
+        image: redis:7-alpine
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 6379:6379
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set up Python 3.13
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.13'
+        cache: 'pip'
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip setuptools wheel
+        pip install -e ".[dev]"
+
+    - name: Lint with ruff
+      run: |
+        ruff check app/ api/ tests/ --select=E9,F63,F7,F82 --show-source
+      continue-on-error: true
+
+    - name: Format check with ruff
+      run: |
+        ruff format app/ api/ tests/ --check
+      continue-on-error: true
+
+    - name: Type check with mypy
+      run: |
+        mypy app/ api/ --ignore-missing-imports --no-implicit-optional
+      continue-on-error: true
+
+    - name: Run pytest
+      env:
+        DATABASE_URL: postgresql+asyncpg://referral_user:test_password@localhost:5432/referral_bot_test
+        REDIS_HOST: localhost
+        REDIS_PORT: 6379
+        BOT_TOKEN: test_token
+        WEBHOOK_HOST: http://localhost:8000
+        ADMIN: "123456"
+      run: |
+        pytest tests/ -v --cov=app --cov=api --cov-report=xml --cov-report=html --cov-branch
+
+    - name: Upload coverage to Codecov
+      uses: codecov/codecov-action@v3
+      with:
+        file: ./coverage.xml
+        fail_ci_if_error: false
+        verbose: true
+
+    - name: Archive test results
+      if: always()
+      uses: actions/upload-artifact@v3
+      with:
+        name: test-results
+        path: |
+          htmlcov/
+          .coverage

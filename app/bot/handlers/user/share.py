@@ -1,19 +1,24 @@
 """
-Havolani ulashish — konkurs matni + deeplink inline button
+Havolani ulashish.
 
-Do'stga yuboriladigan xabarda:
-- Konkurs matni (welcome_message yoki avtomatik)
-- "Qatnashish uchun quyidagi tugmani bosing" matni
-- Inline button → botga deeplink (bosganida /start?start=REFERRER_ID)
+Do'stga Telegram share URL orqali yuboriladigan matn:
+  welcome_message (plain text) + referral link oxirida
+  → Telegram bu linkni inline button (preview) sifatida ko'rsatadi
+
+User botda ko'radigan xabar:
+  welcome_message (HTML) + "Do'stlarga ulashish" tugmasi
 """
+
 import logging
 import re
 import urllib.parse
 
 from aiogram import Router, F
 from aiogram.types import (
-    Message, CallbackQuery,
-    InlineKeyboardMarkup, InlineKeyboardButton,
+    Message,
+    CallbackQuery,
+    InlineKeyboardMarkup,
+    InlineKeyboardButton,
 )
 from aiogram.filters import Command
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -28,45 +33,53 @@ router = Router()
 
 
 def _strip_html(text: str) -> str:
-    """HTML teglarni olib tashlash — Telegram share URLsi uchun."""
     return re.sub(r"<[^>]+>", "", text).strip()
 
 
-def _build_share_text(contest) -> str:
+def _build_share_text(contest, referral_link: str) -> str:
     """
-    Do'stga yuboriladigan taklif matni (plain text, HTML yo'q).
-    Telegram share URL'da ko'rinadi.
+    Do'stga yuboriladigan matn (plain text).
+    Oxirida referral link — Telegram inline button (preview) sifatida ko'rsatadi.
     """
     if contest and contest.welcome_message:
-        contest_block = _strip_html(contest.welcome_message)
+        body = _strip_html(contest.welcome_message)
     elif contest:
-        contest_block = (
+        body = (
             f"🏆 {contest.title}\n\n"
             f"🎯 {contest.required_referrals} ta do'st taklif qil — sovrin yutib ol!"
         )
     else:
-        contest_block = "🏆 Ajoyib konkurs boshlanmoqda!"
+        body = "🏆 Ajoyib konkurs boshlanmoqda!"
 
     return (
-        f"{contest_block}\n\n"
-        "👇 Qatnashish uchun quyidagi tugmani bosing:"
+        f"{body}\n\n"
+        f"👇 Qatnashish uchun quyidagi tugmani bosing:\n"
+        f"{referral_link}"
     )
 
 
-def _build_share_keyboard(referral_link: str, share_text: str) -> InlineKeyboardMarkup:
-    """
-    Ulashish tugmasi — Telegram share URL (deeplink + matn birgalikda).
-    Do'st tugmani bosganida: Telegram share dialog ochiladi.
-    Do'st havolani bosganida: bot /start?start=REFERRER_ID qabul qiladi.
-    """
-    encoded_url = urllib.parse.quote(referral_link, safe="")
-    encoded_text = urllib.parse.quote(share_text, safe="")
-    share_url = f"https://t.me/share/url?url={encoded_url}&text={encoded_text}"
+def _build_user_keyboard(referral_link: str, share_text: str) -> InlineKeyboardMarkup:
+    cleaned_text = re.sub(r"https?://\S+", "", share_text)
+    cleaned_lines = [line for line in cleaned_text.splitlines() if line.strip()]
+    cleaned_text = "\n".join(cleaned_lines).strip()
 
-    return InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="📤 Do'stlarga ulashish ↗", url=share_url)],
-        [InlineKeyboardButton(text="🔙 Orqaga", callback_data="back_to_main")],
-    ])
+    full_text = f"""{cleaned_text}
+
+Havola: {referral_link}"""
+
+    share_url = "https://t.me/share/url?" + urllib.parse.urlencode(
+        {
+            "url": referral_link,  # ← link preview + redirect fix
+            "text": full_text.strip(),  # ← matn + pastda "Havola: link"
+        }
+    )
+
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton(text="📤 Do'stlarga ulashish ↗", url=share_url)],
+            [InlineKeyboardButton(text="🔙 Orqaga", callback_data="back_to_main")],
+        ]
+    )
 
 
 @router.callback_query(F.data == "share_link")
@@ -86,22 +99,33 @@ async def share_link_cb(callback: CallbackQuery, db: AsyncSession):
     contest = await contest_repo.get_active_contest()
     target = contest.required_referrals if contest else 5
 
-    share_text = _build_share_text(contest)
-    keyboard = _build_share_keyboard(referral_link, share_text)
+    share_text = _build_share_text(contest, referral_link)
+    keyboard = _build_user_keyboard(referral_link, share_text)
 
     text = (
         "🔗 <b>Taklif havolangiz tayyor!</b>\n\n"
         f"<code>{referral_link}</code>\n\n"
         "📌 <b>Qanday ishlaydi?</b>\n"
-        "1️⃣ Quyidagi tugmani bosib do'stlaringizga yuboring\n"
-        "2️⃣ Do'stingiz havolani bosib botga kiradi\n"
+        "1️⃣ «Do'stlarga ulashish» tugmasini bosing\n"
+        "2️⃣ Do'stingizga yuboring — u botga kiradi\n"
         "3️⃣ Sizga avtomatik <b>+1</b> qo'shiladi\n\n"
         f"🏅 Maqsad: <b>{target} ta</b> do'st → sovrinni yutib olasiz!"
     )
 
-    await callback.message.edit_text(
-        text, reply_markup=keyboard, disable_web_page_preview=True
-    )
+    photo_id = getattr(contest, "welcome_photo_file_id", None) if contest else None
+
+    if photo_id:
+        try:
+            await callback.message.delete()
+        except Exception:
+            pass
+        await callback.message.answer_photo(
+            photo_id, caption=text, reply_markup=keyboard
+        )
+    else:
+        await callback.message.edit_text(
+            text, reply_markup=keyboard, disable_web_page_preview=True
+        )
 
 
 @router.message(Command("referral", "link"))
@@ -119,13 +143,26 @@ async def cmd_referral(message: Message, db: AsyncSession):
     contest = await contest_repo.get_active_contest()
     target = contest.required_referrals if contest else 5
 
-    share_text = _build_share_text(contest)
-    keyboard = _build_share_keyboard(referral_link, share_text)
+    share_text = _build_share_text(contest, referral_link)
+    keyboard = _build_user_keyboard(referral_link, share_text)
 
-    await message.answer(
-        f"🔗 <b>Sizning taklif havolangiz:</b>\n\n"
-        f"<code>{referral_link}</code>\n\n"
-        f"🏅 Maqsad: <b>{target} ta</b> do'st → sovrinni yutib olasiz!",
-        reply_markup=keyboard,
-        disable_web_page_preview=True,
-    )
+    photo_id = getattr(contest, "welcome_photo_file_id", None) if contest else None
+
+    if photo_id:
+        await message.answer_photo(
+            photo_id,
+            caption=(
+                f"🔗 <b>Sizning taklif havolangiz:</b>\n\n"
+                f"<code>{referral_link}</code>\n\n"
+                f"🏅 Maqsad: <b>{target} ta</b> do'st → sovrinni yutib olasiz!"
+            ),
+            reply_markup=keyboard,
+        )
+    else:
+        await message.answer(
+            f"🔗 <b>Sizning taklif havolangiz:</b>\n\n"
+            f"<code>{referral_link}</code>\n\n"
+            f"🏅 Maqsad: <b>{target} ta</b> do'st → sovrinni yutib olasiz!",
+            reply_markup=keyboard,
+            disable_web_page_preview=True,
+        )
