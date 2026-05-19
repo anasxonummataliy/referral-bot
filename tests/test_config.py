@@ -1,4 +1,5 @@
 """Configuration tests for environment and settings"""
+
 import pytest
 from app.core.config import Settings
 
@@ -14,7 +15,7 @@ class TestSettings:
             DB_USER="test_user",
             WEBHOOK_HOST="http://localhost:8000",
         )
-        
+
         assert settings.BOT_TOKEN == "test_token"
         assert settings.DB_PORT == 5435
         assert settings.REDIS_PORT == 6379
@@ -33,7 +34,7 @@ class TestSettings:
             DB_PASSWORD="password",
             WEBHOOK_HOST="http://localhost:8000",
         )
-        
+
         expected_url = "postgresql+asyncpg://user:password@localhost:5432/referral_bot"
         assert settings.DATABASE_URL == expected_url
 
@@ -48,7 +49,7 @@ class TestSettings:
             REDIS_PASSWORD="redis_pass",
             WEBHOOK_HOST="http://localhost:8000",
         )
-        
+
         expected = "redis://:redis_pass@localhost:6379/0"
         assert settings.REDIS_URL == expected
 
@@ -62,7 +63,7 @@ class TestSettings:
             REDIS_PORT=6379,
             WEBHOOK_HOST="http://localhost:8000",
         )
-        
+
         expected = "redis://localhost:6379/0"
         assert settings.REDIS_URL == expected
 
@@ -74,7 +75,7 @@ class TestSettings:
             DB_USER="test_user",
             WEBHOOK_HOST="http://localhost:8000",
         )
-        
+
         assert settings.REDIS_URL is None
 
     def test_is_admin_check(self):
@@ -86,7 +87,7 @@ class TestSettings:
             ADMIN=[123456, 789012],
             WEBHOOK_HOST="http://localhost:8000",
         )
-        
+
         assert settings.is_admin(123456) is True
         assert settings.is_admin(789012) is True
         assert settings.is_admin(111111) is False
@@ -100,7 +101,7 @@ class TestSettings:
             ADMIN=[123456, 789012, 555555],
             WEBHOOK_HOST="http://localhost:8000",
         )
-        
+
         assert len(settings.ADMIN_IDS) == 3
         assert 123456 in settings.ADMIN_IDS
         assert 789012 in settings.ADMIN_IDS

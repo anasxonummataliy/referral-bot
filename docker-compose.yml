@@ -15,7 +15,7 @@ services:
       - postgres_data:/var/lib/postgresql/data
       - ./init-db.sql:/docker-entrypoint-initdb.d/init.sql
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-referral_user}"]
+      test: [ "CMD-SHELL", "pg_isready -U ${DB_USER:-referral_user}" ]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -33,7 +33,7 @@ services:
     volumes:
       - redis_data:/data
     healthcheck:
-      test: ["CMD", "redis-cli", "--raw", "incr", "ping"]
+      test: [ "CMD", "redis-cli", "--raw", "incr", "ping" ]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -52,54 +52,54 @@ services:
       BOT_TOKEN: ${BOT_TOKEN}
       BOT_USERNAME: ${BOT_USERNAME:-referral_bot}
       ADMIN: ${ADMIN:-}
-      
+
       # Database
       DB_HOST: postgres
       DB_PORT: 5432
       DB_NAME: ${DB_NAME:-referral_bot}
       DB_USER: ${DB_USER:-referral_user}
       DB_PASSWORD: ${DB_PASSWORD:-referral_password}
-      
+
       # Webhook
       WEBHOOK_HOST: ${WEBHOOK_HOST:-http://localhost:8000}
       WEBHOOK_PATH: ${WEBHOOK_PATH:-/webhook}
-      
+
       # Redis
       REDIS_HOST: redis
       REDIS_PORT: 6379
       REDIS_PASSWORD: ${REDIS_PASSWORD:-redis_password}
       REDIS_DB: ${REDIS_DB:-0}
-      
+
       # Environment
       ENVIRONMENT: ${ENVIRONMENT:-production}
-      
+
       # Python settings
       PYTHONUNBUFFERED: 1
       PYTHONDONTWRITEBYTECODE: 1
-    
+
     ports:
       - "8000:8000"
-    
+
     depends_on:
       postgres:
         condition: service_healthy
       redis:
         condition: service_healthy
-    
+
     volumes:
       - ./app:/app/app
       - ./api:/app/api
-    
+
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/"]
+      test: [ "CMD", "curl", "-f", "http://localhost:8000/" ]
       interval: 30s
       timeout: 10s
       retries: 3
       start_period: 10s
-    
+
     networks:
       - referral_network
-    
+
     restart: unless-stopped
     logging:
       driver: "json-file"
@@ -110,6 +110,7 @@ services:
 volumes:
   postgres_data:
   redis_data:
+
 
 networks:
   referral_network:

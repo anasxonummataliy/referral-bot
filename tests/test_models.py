@@ -1,4 +1,5 @@
 """Unit tests for database models"""
+
 import pytest
 import pytest_asyncio
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -19,7 +20,7 @@ class TestUserModel:
         )
         db_session.add(user)
         await db_session.commit()
-        
+
         retrieved = await db_session.get(User, user.id)
         assert retrieved is not None
         assert retrieved.telegram_id == 123456789
@@ -33,7 +34,7 @@ class TestUserModel:
         )
         db_session.add(user)
         await db_session.commit()
-        
+
         retrieved = await db_session.get(User, user.id)
         assert retrieved.referral_count == 0
         assert retrieved.is_subscribed is False
@@ -48,7 +49,7 @@ class TestUserModel:
         )
         db_session.add(user)
         await db_session.commit()
-        
+
         repr_str = repr(user)
         assert "123456789" in repr_str
         assert "Refs: 0" in repr_str
@@ -71,7 +72,7 @@ class TestReferralModel:
         )
         db_session.add_all([referrer, referred])
         await db_session.commit()
-        
+
         # Create referral
         referral = Referral(
             referrer_id=referrer.id,
@@ -79,7 +80,7 @@ class TestReferralModel:
         )
         db_session.add(referral)
         await db_session.commit()
-        
+
         retrieved = await db_session.get(Referral, referral.id)
         assert retrieved is not None
         assert retrieved.referrer_id == referrer.id
@@ -103,7 +104,7 @@ class TestUserRelationships:
         )
         db_session.add_all([referrer, referral_user])
         await db_session.commit()
-        
+
         # Refresh to load relationships
         await db_session.refresh(referral_user)
         assert referral_user.referrer_id == referrer.id
@@ -127,6 +128,6 @@ class TestUserRelationships:
         )
         db_session.add_all([referrer, referred1, referred2])
         await db_session.commit()
-        
+
         await db_session.refresh(referrer)
         assert len(referrer.referrals) == 2

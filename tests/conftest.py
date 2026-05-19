@@ -16,15 +16,15 @@ async def engine():
         echo=False,
         connect_args={"check_same_thread": False},
     )
-    
+
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
-    
+
     yield engine
-    
+
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.drop_all)
-    
+
     await engine.dispose()
 
 
@@ -32,7 +32,7 @@ async def engine():
 async def db_session(engine):
     """Create test database session"""
     async_session_maker = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
-    
+
     async with async_session_maker() as session:
         yield session
 
