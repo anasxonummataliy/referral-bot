@@ -26,6 +26,7 @@ AsyncSessionLocal = async_sessionmaker(
 
 async def get_db() -> AsyncGenerator[AsyncSession, None]:
     """Har bir request uchun yangi session"""
+    
     async with AsyncSessionLocal() as session:
         try:
             yield session
