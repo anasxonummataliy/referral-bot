@@ -21,14 +21,53 @@ jobs:
           target: "/home/${{ secrets.SERVER_USER }}/referral-bot"
           overwrite: true
 
-      - name: Deploy with Docker Compose
+      - name: Setup nginx + SSL + Deploy
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.SERVER_HOST }}
           username: ${{ secrets.SERVER_USER }}
           key: ${{ secrets.SERVER_SSH_KEY }}
           script: |
-            cd /home/${{ secrets.SERVER_USER }}/referral-bot
+            set -e
+            DOMAIN="api-english.anasxonummataliy.dev"
+            APP_DIR="/home/$USER/referral-bot"
+
+            # ── 1. nginx o'rnatish ──────────────────────────────────────────
+            if ! command -v nginx &>/dev/null; then
+              apt-get update -qq && apt-get install -y -q nginx
+            fi
+
+            # ── 2. certbot o'rnatish ────────────────────────────────────────
+            if ! command -v certbot &>/dev/null; then
+              apt-get install -y -q certbot python3-certbot-nginx
+            fi
+
+            # ── 3. nginx config nusxalash ───────────────────────────────────
+            cp "$APP_DIR/nginx/referral-bot.conf" /etc/nginx/sites-available/referral-bot.conf
+            ln -sf /etc/nginx/sites-available/referral-bot.conf /etc/nginx/sites-enabled/referral-bot.conf
+            rm -f /etc/nginx/sites-enabled/default
+
+            # ── 4. SSL sertifikat (birinchi marta yoki yangilash) ───────────
+            if [ ! -f "/etc/letsencrypt/live/$DOMAIN/fullchain.pem" ]; then
+              # Birinchi marta: HTTP orqali olish (nginx faqat 80 port bilan ishlaydi)
+              nginx -t && systemctl reload nginx
+              certbot certonly --nginx \
+                --non-interactive \
+                --agree-tos \
+                --email "${{ secrets.CERTBOT_EMAIL }}" \
+                -d "$DOMAIN"
+            fi
+
+            # ── 5. nginx to'liq config bilan reload ────────────────────────
+            nginx -t && systemctl reload nginx
+
+            # ── 6. Docker Compose deploy ────────────────────────────────────
+            cd "$APP_DIR"
             docker compose down
             docker compose up -d --build
             docker compose ps
+
+            # ── 7. Certbot auto-renew (cron, agar yo'q bo'lsa) ─────────────
+            if ! crontab -l 2>/dev/null | grep -q certbot; then
+              (crontab -l 2>/dev/null; echo "0 3 * * * certbot renew --quiet && systemctl reload nginx") | crontab -
+            fi
