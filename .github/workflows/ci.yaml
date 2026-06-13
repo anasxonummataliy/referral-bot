@@ -19,13 +19,12 @@ jobs:
           version: "latest"
 
       - name: Set up Python 3.13
-        run: uv python install 3.13
-
-      - name: Install dev dependencies
-        run: uv sync --dev
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
 
       - name: Run ruff
-        run: uv run ruff check .
+        run: uvx ruff check .
 
   test:
     name: Tests
@@ -40,7 +39,9 @@ jobs:
           version: "latest"
 
       - name: Set up Python 3.13
-        run: uv python install 3.13
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
 
       - name: Install dependencies
         run: uv sync --dev
