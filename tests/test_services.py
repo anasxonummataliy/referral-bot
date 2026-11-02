@@ -37,12 +37,26 @@ class TestReferralService:
         result = await service.process_new_referral(
             new_user_telegram_id=222222222,
             referrer_telegram_id=111111111,
+            give_bonus=False,
         )
 
         assert result is True
 
         await db_session.refresh(new_user)
         assert new_user.referrer_id == referrer.id
+
+        await db_session.refresh(referrer)
+        # Hali obuna tasdiqlanmagani uchun referrer count 0 qoladi
+        assert referrer.referral_count == 0
+
+        # Kanallarga qo'shilgach confirm_referral chaqiriladi
+        from unittest.mock import AsyncMock, MagicMock
+        mock_bot = MagicMock()
+        mock_bot.send_message = AsyncMock()
+        mock_bot.get_me = AsyncMock(return_value=MagicMock(username="test_bot"))
+
+        confirmed = await service.confirm_referral(222222222, mock_bot)
+        assert confirmed is True
 
         await db_session.refresh(referrer)
         assert referrer.referral_count == 1

@@ -33,8 +33,8 @@ async def my_referrals_cb(callback: CallbackQuery, db: AsyncSession):
         return
 
     referral_repo = ReferralRepository(db)
-    referrals = await referral_repo.get_user_referrals(user.id)
-    ref_count = len(referrals)
+    referrals = await referral_repo.get_user_referrals(user.id, only_confirmed=True)
+    ref_count = user.referral_count
 
     contest_repo = ContestRepository(db)
     contest = await contest_repo.get_active_contest()
@@ -42,7 +42,8 @@ async def my_referrals_cb(callback: CallbackQuery, db: AsyncSession):
     bar = progress_bar(ref_count, target)
 
     text = (
-        f"📊 <b>Natijangiz:</b> {ref_count} / {target} ta do'st\n"
+        f"📊 <b>Sizning natijangiz</b>\n\n"
+        f"✅ Tasdiqlangan: <b>{ref_count} ta</b>\n\n"
         f"{bar}\n\n"
     )
     if referrals:
@@ -169,7 +170,7 @@ async def get_prize_link_cb(callback: CallbackQuery, db: AsyncSession):
         )
 
 
-@router.message(Command("mystats", "natija"))
+@router.message(Command("mystats", "stats", "natija"))
 async def cmd_mystats(message: Message, db: AsyncSession):
     user_id = message.from_user.id
     user_repo = UserRepository(db)

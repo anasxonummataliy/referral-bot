@@ -274,26 +274,19 @@ async def cmd_start(message: Message, bot: Bot, db: AsyncSession):
 
     # ── REFERRAL QAYD ─────────────────────────────────────────────────────────
     # Faqat haqiqatan yangi user + referrer mavjud + o'ziga o'zi emas
+    # Muhim: referral yozuvi yaratiladi, lekin +1 faqat majburiy kanallarga a'zo bo'lgach beriladi!
     if is_really_new and referrer_id and referrer_id != user_id:
         ref_service = ReferralService(db)
         registered = await ref_service.process_new_referral(
             new_user_telegram_id=user_id,
             referrer_telegram_id=referrer_id,
+            give_bonus=False,
         )
         if registered:
-            # Referrerga +1 bildirishnomasi
-            await notify_referrer(
-                bot=bot,
-                referrer_telegram_id=referrer_id,
-                new_user_name=message.from_user.first_name or "Do'st",
-                db=db,
-            )
-            # Shartni bajardimi? → prize link
-            await check_and_send_prize(
-                bot=bot,
-                referrer_telegram_id=referrer_id,
-                db=db,
-            )
+            # Agar majburiy kanallar bo'lmasa yoki user allaqachon a'zo bo'lsa — darhol tasdiqlash
+            sub_service = SubscriptionService(db)
+            if await sub_service.check_full_subscription(bot=bot, telegram_id=user_id):
+                await ref_service.confirm_referral(user_id, bot)
 
     # ── KONKURS ───────────────────────────────────────────────────────────────
     contest_repo = ContestRepository(db)
@@ -325,6 +318,10 @@ async def check_subscription_cb(callback: CallbackQuery, db: AsyncSession):
     )
 
     if is_subscribed:
+        # Yangi referral bo'lsa uni tasdiqlaymiz (+1 qo'shiladi)
+        ref_service = ReferralService(db)
+        await ref_service.confirm_referral(user_id, callback.bot)
+
         await safe_answer(callback, "✅ Obuna tasdiqlandi!")
         try:
             await callback.message.delete()
@@ -334,27 +331,55 @@ async def check_subscription_cb(callback: CallbackQuery, db: AsyncSession):
         contest_repo = ContestRepository(db)
         contest = await contest_repo.get_active_contest()
 
-        # Agar foydalanuvchi yetarli referral to'plagan bo'lsa va kirish huquqi faol bo'lmasa,
-        # unga yangi 1 martalik link beriladi!
-        user_repo = UserRepository(db)
-        user = await user_repo.get_by_telegram_id(user_id)
-        if contest and contest.prize_channel_id and user and user.referral_count >= contest.required_referrals:
-            if not user.has_prize_access:
-                await send_prize_link(
-                    bot=callback.bot,
-                    user_id=user_id,
-                    contest=contest,
-                    is_resubscribed=True,
-                )
-                await user_repo.update_prize_access(user_id, True)
-
         if not contest:
             await callback.message.answer(
                 "⏳ Hozircha aktiv konkurs mavjud emas.\n\nTez orada e'lon qilinadi!"
             )
             return
 
-        await show_main_menu(callback.message, db, contest)
+        user_repo = UserRepository(db)
+        user = await user_repo.get_by_telegram_id(user_id)
+        ref_count = user.referral_count if user else 0
+        target = contest.required_referrals if contest else 5
+        bar = progress_bar(ref_count, target)
+
+        bot_info = await callback.bot.get_me()
+        bot_username = settings.BOT_USERNAME or bot_info.username
+
+        referral_link = await ref_service.get_user_referral_link(
+            telegram_id=user_id, bot_username=bot_username
+        )
+        from app.bot.handlers.user.share import _build_share_text
+        import urllib.parse
+        share_text = _build_share_text(contest, referral_link)
+        share_url = "https://t.me/share/url?" + urllib.parse.urlencode({"text": share_text})
+
+        # Agar foydalanuvchi yetarli referral to'plagan bo'lsa va prize kanal bo'lsa:
+        if contest.prize_channel_id and ref_count >= target:
+            if not user.has_prize_access:
+                sent = await send_prize_link(
+                    bot=callback.bot,
+                    user_id=user_id,
+                    contest=contest,
+                    is_resubscribed=True,
+                    ref_count=ref_count,
+                    db=db,
+                )
+                if sent:
+                    await user_repo.update_prize_access(user_id, True)
+                    return  # Bitta birlashtirilgan post yuborildi!
+
+        # Prize link bo'lmaganda yoki shart to'liq bajarilmaganda — natija va havolani bitta postda chiqaramiz:
+        text = (
+            "✅ <b>Obuna tasdiqlandi!</b>\n\n"
+            f"📊 <b>Sizning natijangiz</b>\n\n"
+            f"✅ Tasdiqlangan: <b>{ref_count} ta</b>\n\n"
+            f"{bar}\n\n"
+            f"🔗 <b>Taklif havolangiz:</b>\n"
+            f"<code>{referral_link}</code>"
+        )
+        keyboard = main_menu_keyboard(share_url=share_url)
+        await callback.message.answer(text, reply_markup=keyboard, disable_web_page_preview=True)
     else:
         # Obunani tekshirishda a'zo bo'lmaganligi aniqlansa va prize huquqi bo'lsa — prize kanaldan chiqarish
         contest_repo = ContestRepository(db)

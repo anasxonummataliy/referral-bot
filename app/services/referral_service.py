@@ -33,15 +33,17 @@ class ReferralService:
         )
 
     async def process_new_referral(
-        self, new_user_telegram_id: int, referrer_telegram_id: int
+        self,
+        new_user_telegram_id: int,
+        referrer_telegram_id: int,
+        give_bonus: bool = False,
     ) -> bool:
         """
         Yangi foydalanuvchi referral orqali kelganda chaqiriladi.
         
-        Tekshiruvlar:
-        1. Ikkalasi ham bazada bor
-        2. Yangi user allaqachon birovning referrali emas
-        3. O'ziga o'zi referral qilmaydi
+        give_bonus=False (standart): referral yozuvi bonus_given=False bilan saqlanadi.
+        Referrerga +1 faqat yangi user barcha majburiy kanallarga qo'shilgach
+        confirm_referral() orqali beriladi!
         
         Returns True — muvaffaqiyatli qayd qilindi.
         """
@@ -70,8 +72,8 @@ class ReferralService:
             )
             return False
 
-        # Referral yaratish
-        await self.referral_repo.create_referral(
+        # Referral yaratish (bonus_given=give_bonus)
+        referral = await self.referral_repo.create_referral(
             referrer_id=referrer.id,
             referred_id=new_user.id,
         )
@@ -79,11 +81,67 @@ class ReferralService:
         # Yangi userning referrer_id sini yangilaymiz
         await self.user_repo.update(new_user.id, referrer_id=referrer.id)
 
-        # referral_count +1 (DB da yangilanadi)
-        await self.user_repo.increment_referral_count(referrer_telegram_id)
+        if give_bonus:
+            await self.referral_repo.mark_bonus_given(referral.id)
+            await self.user_repo.increment_referral_count(referrer_telegram_id)
 
         logger.info(
-            f"✅ Referral qayd: new={new_user_telegram_id} → referrer={referrer_telegram_id}"
+            f"✅ Referral qayd: new={new_user_telegram_id} → referrer={referrer_telegram_id} (bonus={give_bonus})"
+        )
+        return True
+
+    async def confirm_referral(self, referred_telegram_id: int, bot) -> bool:
+        """
+        Taklif qilingan foydalanuvchi majburiy kanallarga a'zo bo'lgach chaqiriladi.
+        Hali bonus berilmagan bo'lsa (bonus_given=False):
+        1. bonus_given = True qilinadi
+        2. Referrerning referral_count +1 qilinadi
+        3. Referrerga bildirishnoma yuboriladi (notify_referrer)
+        4. Referrer shartni bajargan bo'lsa prize link yuboriladi (check_and_send_prize)
+        """
+        referred_user = await self.user_repo.get_by_telegram_id(referred_telegram_id)
+        if not referred_user:
+            return False
+
+        referral = await self.referral_repo.get_by_referred_id(referred_user.id)
+        if not referral or referral.bonus_given:
+            return False
+
+        referrer = await self.user_repo.get(referral.referrer_id)
+        if not referrer:
+            return False
+
+        # 1. Bonus berildi deb belgilaymiz
+        await self.referral_repo.mark_bonus_given(referral.id)
+
+        # 2. Referrerning referral_count +1 (DB da yangilanadi)
+        await self.user_repo.increment_referral_count(referrer.telegram_id)
+
+        # 3. Referrerga bildirishnoma
+        try:
+            from app.bot.handlers.user.referral_notify import notify_referrer
+            await notify_referrer(
+                bot=bot,
+                referrer_telegram_id=referrer.telegram_id,
+                new_user_name=referred_user.full_name or "Do'st",
+                db=self.db,
+            )
+        except Exception as e:
+            logger.error(f"notify_referrer xatolik: {e}")
+
+        # 4. Referrer sovg'a shartini bajargan bo'lsa prize link
+        try:
+            from app.bot.handlers.user.prize import check_and_send_prize
+            await check_and_send_prize(
+                bot=bot,
+                referrer_telegram_id=referrer.telegram_id,
+                db=self.db,
+            )
+        except Exception as e:
+            logger.error(f"check_and_send_prize xatolik: {e}")
+
+        logger.info(
+            f"🎉 Referral tasdiqlandi (+1): referred={referred_telegram_id} → referrer={referrer.telegram_id}"
         )
         return True
 

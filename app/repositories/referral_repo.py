@@ -28,13 +28,15 @@ class ReferralRepository(BaseRepository[Referral]):
         result = await self.session.execute(stmt)
         return result.scalar_one_or_none()
 
-    async def get_user_referrals(self, referrer_id: int) -> Sequence[Referral]:
+    async def get_user_referrals(
+        self, referrer_id: int, only_confirmed: bool = True
+    ) -> Sequence[Referral]:
         """Biror foydalanuvchining barcha referral larini olish (user.id)"""
-        stmt = (
-            select(Referral)
-            .where(Referral.referrer_id == referrer_id)
-            .options(selectinload(Referral.referred))
-            .order_by(Referral.joined_at.desc())
+        stmt = select(Referral).where(Referral.referrer_id == referrer_id)
+        if only_confirmed:
+            stmt = stmt.where(Referral.bonus_given == True)
+        stmt = stmt.options(selectinload(Referral.referred)).order_by(
+            Referral.joined_at.desc()
         )
         result = await self.session.execute(stmt)
         return result.scalars().all()

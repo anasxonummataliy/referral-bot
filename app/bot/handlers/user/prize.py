@@ -44,6 +44,8 @@ async def send_prize_link(
     user_id: int,
     contest,
     is_resubscribed: bool = False,
+    ref_count: int | None = None,
+    db: AsyncSession | None = None,
 ) -> bool:
     """
     1 martalik invite link yaratib yuborish.
@@ -86,17 +88,36 @@ async def send_prize_link(
         )
     ]])
 
+    target = contest.required_referrals if contest else 1
+    if ref_count is None and db:
+        user_repo = UserRepository(db)
+        user = await user_repo.get_by_telegram_id(user_id)
+        ref_count = user.referral_count if user else 0
+    elif ref_count is None:
+        ref_count = target
+
+    from app.bot.handlers.user.utils import progress_bar
+    bar = progress_bar(ref_count, target)
+
+    stats_block = (
+        f"\n\n📊 <b>Sizning natijangiz</b>\n\n"
+        f"✅ Tasdiqlangan: <b>{ref_count} ta</b>\n\n"
+        f"{bar}"
+    )
+
     if is_resubscribed:
         prize_text = (
             "✅ <b>Obuna tasdiqlandi!</b>\n\n"
             f"<b>{channel_title}</b> kanaliga 1 martalik havolangiz:\n\n"
             "⚠️ <i>Diqqat: Bu havola faqat 1 marta ishlaydi! Uni boshqaga bermang.</i>"
+            f"{stats_block}"
         )
     else:
         prize_text = (
             "🎉 <b>Tabriklaymiz! Shart bajarildi.</b>\n\n"
             f"<b>{channel_title}</b> kanaliga 1 martalik havolangiz:\n\n"
             "⚠️ <i>Diqqat: Bu havola faqat 1 marta ishlaydi! Uni boshqaga bermang.</i>"
+            f"{stats_block}"
         )
 
     try:

@@ -123,6 +123,11 @@ async def on_chat_member_updated(
             if db_user:
                 await user_repo.update_subscription_status(user.id, True)
 
+            # Yangi referral bo'lsa uni tasdiqlaymiz (+1 hisoblanadi)
+            from app.services.referral_service import ReferralService
+            ref_service = ReferralService(db)
+            await ref_service.confirm_referral(user.id, bot)
+
             if contest and contest.prize_channel_id:
                 fresh_user = await user_repo.get_by_telegram_id(user.id)
                 if fresh_user and fresh_user.referral_count >= contest.required_referrals:
@@ -132,6 +137,8 @@ async def on_chat_member_updated(
                             user_id=user.id,
                             contest=contest,
                             is_resubscribed=True,
+                            ref_count=fresh_user.referral_count,
+                            db=db,
                         )
                         if sent:
                             await user_repo.update_prize_access(user.id, True)
