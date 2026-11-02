@@ -48,8 +48,6 @@ async def on_chat_member_updated(
 
     user_repo = UserRepository(db)
     db_user = await user_repo.get_by_telegram_id(user.id)
-    if not db_user:
-        return
 
     old_status = event.old_chat_member.status
     new_status = event.new_chat_member.status
@@ -61,57 +59,79 @@ async def on_chat_member_updated(
 
     # ── 1. FOYDALANUVCHI KANALDAN CHIQIB KETGANDA ────────────────────────────
     if new_status in ["left", "kicked"]:
-        # DB da obuna holatini yangilaymiz
-        await user_repo.update_subscription_status(user.id, False)
+        if db_user:
+            await user_repo.update_subscription_status(user.id, False)
 
-        # Agar aktiv konkurs va prize kanal bo'lsa
+        was_in_prize = False
         if contest and contest.prize_channel_id:
-            # Agar userda prize huquqi bo'lgan bo'lsa yoki yetarli referral to'plagan bo'lsa
-            if db_user.has_prize_access or db_user.referral_count >= contest.required_referrals:
-                # Yopiq kanaldan chiqarib yuboramiz
+            # Agar userda prize huquqi bo'lsa yoki yetarli referali bo'lsa
+            if db_user and (db_user.has_prize_access or db_user.referral_count >= contest.required_referrals):
                 await kick_user_from_prize_channel(bot, contest.prize_channel_id, user.id)
                 await user_repo.update_prize_access(user.id, False)
-
-                # Foydalanuvchiga bot orqali ogohlantirish yuboramiz
+                was_in_prize = True
+            else:
                 try:
-                    keyboard = InlineKeyboardMarkup(inline_keyboard=[[
-                        InlineKeyboardButton(
-                            text="⚡️ Qayta a'zo bo'ldim — Tekshirish ✅",
-                            callback_data="check_subscription",
-                        )
-                    ]])
-                    channel_title = channel.title or "majburiy kanal"
-                    await bot.send_message(
-                        chat_id=user.id,
-                        text=(
-                            "⚠️ <b>Diqqat! Obuna bekor qilindi</b> ❗️\n\n"
-                            f"Siz majburiy obuna kanallaridan biridan (<b>{channel_title}</b>) "
-                            "chiqib ketganingiz sababli <b>yopiq kanaldan chiqarildingiz!</b> 🔒\n\n"
-                            "✨ Yopiq kanalga qayta 1 martalik link olish uchun barcha majburiy kanallarga qayta a'zo bo'ling "
-                            "va quyidagi tugmani bosing:"
-                        ),
-                        reply_markup=keyboard,
-                    )
-                except Exception as e:
-                    logger.warning(f"Chiqarilgan userga ({user.id}) xabar yuborishda xato: {e}")
+                    await kick_user_from_prize_channel(bot, contest.prize_channel_id, user.id)
+                except Exception:
+                    pass
+
+        # Foydalanuvchiga bot orqali ogohlantirish yuboramiz
+        try:
+            channel_title = channel.title or "majburiy kanal"
+            channel_link = channel.invite_link or (
+                f"https://t.me/{channel.username.lstrip('@')}" if channel.username else None
+            )
+            buttons = []
+            if channel_link:
+                buttons.append([InlineKeyboardButton(text=f"📢 {channel_title}", url=channel_link)])
+            buttons.append([
+                InlineKeyboardButton(
+                    text="✅ Qayta a'zo bo'ldim — Tekshirish",
+                    callback_data="check_subscription",
+                )
+            ])
+            keyboard = InlineKeyboardMarkup(inline_keyboard=buttons)
+
+            if was_in_prize:
+                msg_text = (
+                    f"⚠️ <b>Diqqat!</b>\n\n"
+                    f"Siz <b>{channel_title}</b> kanalidan chiqib ketganingiz sababli "
+                    f"<b>yopiq kanaldan chiqarildingiz!</b>\n\n"
+                    f"Qayta kirish uchun barcha kanallarga a'zo bo'ling va tekshirish tugmasini bosing:"
+                )
+            else:
+                msg_text = (
+                    f"⚠️ <b>Diqqat!</b>\n\n"
+                    f"Siz majburiy kanal (<b>{channel_title}</b>)dan chiqib ketdingiz.\n\n"
+                    f"Botdan foydalanish uchun kanalga qayta a'zo bo'ling:"
+                )
+
+            await bot.send_message(
+                chat_id=user.id,
+                text=msg_text,
+                reply_markup=keyboard,
+            )
+        except Exception as e:
+            logger.warning(f"Chiqarilgan userga ({user.id}) xabar yuborishda xato: {e}")
 
     # ── 2. FOYDALANUVCHI KANALGA QO'SHILGANDA / QAYTGANDA ────────────────────
     elif new_status in ["member", "administrator", "creator"]:
-        # Barcha majburiy kanallarga obuna bo'ldimi tekshiramiz
         sub_service = SubscriptionService(db)
         is_all_sub = await sub_service.check_full_subscription(bot, user.id)
 
-        if is_all_sub and contest and contest.prize_channel_id:
-            # Referral shartini bajarganmi?
-            fresh_user = await user_repo.get_by_telegram_id(user.id)
-            if fresh_user and fresh_user.referral_count >= contest.required_referrals:
-                # Agar hozirda kirish huquqi faol bo'lmasa (chiqarilgan yoki hali olmagan bo'lsa)
-                if not fresh_user.has_prize_access:
-                    sent = await send_prize_link(
-                        bot=bot,
-                        user_id=user.id,
-                        contest=contest,
-                        is_resubscribed=True,
-                    )
-                    if sent:
-                        await user_repo.update_prize_access(user.id, True)
+        if is_all_sub:
+            if db_user:
+                await user_repo.update_subscription_status(user.id, True)
+
+            if contest and contest.prize_channel_id:
+                fresh_user = await user_repo.get_by_telegram_id(user.id)
+                if fresh_user and fresh_user.referral_count >= contest.required_referrals:
+                    if not fresh_user.has_prize_access:
+                        sent = await send_prize_link(
+                            bot=bot,
+                            user_id=user.id,
+                            contest=contest,
+                            is_resubscribed=True,
+                        )
+                        if sent:
+                            await user_repo.update_prize_access(user.id, True)

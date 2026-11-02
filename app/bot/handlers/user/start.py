@@ -153,9 +153,9 @@ async def show_main_menu(
     contest_text = (contest.welcome_message or contest.title or "").strip()
 
     text_share = (
-        f"📊 <b>Sizning natijangiz:</b> <b>{ref_count} / {target} ta do'st</b>\n"
+        f"📊 <b>Natijangiz:</b> {ref_count} / {target} ta do'st\n"
         f"{bar}\n\n"
-        f"🔗 <b>Sizning taklif havolangiz:</b>\n"
+        f"🔗 <b>Taklif havolangiz:</b>\n"
         f"<code>{referral_link}</code>"
     )
     keyboard = main_menu_keyboard(share_url=share_url)
@@ -187,6 +187,15 @@ async def show_main_menu(
 @router.message(CommandStart())
 async def cmd_start(message: Message, bot: Bot, db: AsyncSession):
     user_id = message.from_user.id
+
+    # Userni doim yaratib qo'yamiz (admin bo'lsa ham)
+    user_repo = UserRepository(db)
+    _, _ = await user_repo.get_or_create(
+        telegram_id=user_id,
+        full_name=message.from_user.full_name,
+        username=message.from_user.username,
+        language_code=message.from_user.language_code,
+    )
 
     # ── ADMIN ─────────────────────────────────────────────────────────────────
     if await is_admin_async(user_id, db):
@@ -354,6 +363,21 @@ async def back_to_main_cb(callback: CallbackQuery, db: AsyncSession):
         return
 
     await show_main_menu(callback.message, db, contest, edit=True)
+
+
+@router.callback_query(F.data == "user_mode_start")
+async def user_mode_start_cb(callback: CallbackQuery, db: AsyncSession):
+    await safe_answer(callback)
+    contest_repo = ContestRepository(db)
+    contest = await contest_repo.get_active_contest()
+    if not contest:
+        await callback.message.answer("Hozircha aktiv konkurs yo'q.")
+        return
+    try:
+        await callback.message.delete()
+    except Exception:
+        pass
+    await show_main_menu(callback.message, db, contest, edit=False)
 
 
 # ── /admin command ─────────────────────────────────────────────────────────────

@@ -45,4 +45,5 @@ def admin_main_keyboard() -> InlineKeyboardMarkup:
         [InlineKeyboardButton(text="📊 Umumiy Statistika 📈", callback_data="adm_stats")],
         [InlineKeyboardButton(text="⚡️ Xabar Tarqatish 📤", callback_data="adm_broadcast")],
         [InlineKeyboardButton(text="🛡 Adminlar Boshqaruvi 🔑", callback_data="adm_admins")],
+        [InlineKeyboardButton(text="👤 Foydalanuvchi rejimi", callback_data="user_mode_start")],
     ])

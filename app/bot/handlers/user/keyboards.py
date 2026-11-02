@@ -7,17 +7,17 @@ from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 def main_menu_keyboard(share_url: str | None = None) -> InlineKeyboardMarkup:
     buttons = []
     if share_url:
-        buttons.append([InlineKeyboardButton(text="🚀 Do'stlarga ulashish ↗️", url=share_url)])
+        buttons.append([InlineKeyboardButton(text="🚀 Do'stlarga ulashish", url=share_url)])
     else:
-        buttons.append([InlineKeyboardButton(text="💎 Havolani Ulashish 🚀", callback_data="share_link")])
+        buttons.append([InlineKeyboardButton(text="🚀 Do'stlarga ulashish", callback_data="share_link")])
 
     buttons.extend([
         [
-            InlineKeyboardButton(text="📈 Mening natijam ⭐️", callback_data="my_referrals"),
-            InlineKeyboardButton(text="👑 Sovg'am 🎁", callback_data="my_gifts"),
+            InlineKeyboardButton(text="📊 Natijam", callback_data="my_referrals"),
+            InlineKeyboardButton(text="🎁 Sovg'a", callback_data="my_gifts"),
         ],
         [
-            InlineKeyboardButton(text="💬 Admin bilan bog'lanish ✍️", callback_data="contact_admin"),
+            InlineKeyboardButton(text="✉️ Bog'lanish", callback_data="contact_admin"),
         ],
     ])
     return InlineKeyboardMarkup(inline_keyboard=buttons)
