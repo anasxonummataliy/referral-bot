@@ -126,9 +126,12 @@ async def contest_create_start(callback: CallbackQuery, state: FSMContext, db: A
 async def contest_title(message: Message, state: FSMContext, db: AsyncSession):
     if not await is_admin_async(message.from_user.id, db):
         return
-    title = message.text.strip()
+    title = (message.text or message.caption or "").strip()
     if len(title) < 2:
-        await message.answer("❌ Nom juda qisqa. Qaytadan kiriting:")
+        await message.answer(
+            "❌ Nom juda qisqa yoki noto'g'ri. Iltimos, konkurs nomini matn ko'rinishida yuboring:\n\n"
+            "/cancel — bekor qilish"
+        )
         return
     await state.update_data(title=title)
     await message.answer(
@@ -160,6 +163,12 @@ async def contest_welcome(message: Message, state: FSMContext, db: AsyncSession)
             welcome = message.caption.strip()
     elif message.text and message.text.strip() == "/skip":
         pass  # welcome va photo_file_id = None qoladi
+    else:
+        await message.answer(
+            "❌ Iltimos, matn yoki rasm yuboring (yoki /skip bosing):\n\n"
+            "/cancel — bekor qilish"
+        )
+        return
 
     await state.update_data(welcome=welcome, photo_file_id=photo_file_id)
     await message.answer(
@@ -175,9 +184,9 @@ async def contest_refs(message: Message, state: FSMContext, db: AsyncSession):
     if not await is_admin_async(message.from_user.id, db):
         return
 
-    text = message.text.strip()
+    text = (message.text or "").strip()
     if not text.isdigit() or int(text) < 1:
-        await message.answer("❌ Faqat musbat son kiriting:")
+        await message.answer("❌ Faqat musbat son kiriting (masalan: <b>5</b>):\n\n/cancel — bekor qilish")
         return
 
     required_refs = int(text)
@@ -244,7 +253,11 @@ async def contest_save_new_msg(message: Message, state: FSMContext, db: AsyncSes
         new_photo = message.photo[-1].file_id
         if message.caption and message.caption.strip() != "/skip":
             new_msg = message.caption.strip()
-    # /skip → ikkalasi ham None
+    elif message.text and message.text.strip() == "/skip":
+        pass
+    else:
+        await message.answer("❌ Iltimos, matn yoki rasm yuboring (yoki /skip bosing):")
+        return
 
     await contest_repo.update(contest.id, welcome_message=new_msg, welcome_photo_file_id=new_photo)
     await state.clear()
@@ -272,9 +285,9 @@ async def contest_edit_refs_start(callback: CallbackQuery, state: FSMContext, db
 async def contest_save_new_refs(message: Message, state: FSMContext, db: AsyncSession):
     if not await is_admin_async(message.from_user.id, db):
         return
-    text = message.text.strip()
+    text = (message.text or "").strip()
     if not text.isdigit() or int(text) < 1:
-        await message.answer("❌ Faqat musbat son:")
+        await message.answer("❌ Faqat musbat son kiriting:")
         return
     contest_repo = ContestRepository(db)
     contest = await contest_repo.get_active_contest()
@@ -392,7 +405,14 @@ async def contest_prize_channel_save(message: Message, state: FSMContext, db: As
     if not await is_admin_async(message.from_user.id, db):
         return
 
-    text = message.text.strip()
+    text = (message.text or "").strip()
+    if not text:
+        await message.answer(
+            "❌ Noto'g'ri format.\n\n"
+            "Kanal ID (<code>-1001234567890</code>) yoki "
+            "@username yuboring:"
+        )
+        return
 
     # ID yoki @username
     channel_id = None

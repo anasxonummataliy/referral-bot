@@ -105,7 +105,13 @@ async def admin_add_process(message: Message, state: FSMContext, db: AsyncSessio
     if not await is_admin_async(message.from_user.id, db):
         return
 
-    text = message.text.strip()
+    text = (message.text or "").strip()
+    if not text:
+        await message.answer(
+            "❌ Iltimos, Telegram ID yoki @username yuboring:\n\n"
+            "/cancel — bekor qilish"
+        )
+        return
     user_id = None
     username = None
     full_name = None

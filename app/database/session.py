@@ -1,3 +1,4 @@
+import os
 from typing import AsyncGenerator
 
 from sqlalchemy.ext.asyncio import (
@@ -7,6 +8,12 @@ from sqlalchemy.ext.asyncio import (
 )
 
 from app.core.config import settings
+
+# SQLite papkasini avtomatik yaratish
+if settings.DB_PATH and not settings.DB_PATH.startswith(":memory:"):
+    db_dir = os.path.dirname(os.path.abspath(settings.DB_PATH))
+    if db_dir:
+        os.makedirs(db_dir, exist_ok=True)
 
 # Async Engine (SQLite uchun pool sozlamalari yo'q)
 engine = create_async_engine(

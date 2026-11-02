@@ -1,3 +1,4 @@
+import os
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from typing import Optional
 
@@ -9,7 +10,7 @@ class Settings(BaseSettings):
     ADMIN: list[int] = []
 
     # SQLite
-    DB_PATH: str = "/app/data/referral_bot.db"
+    DB_PATH: str = "/app/data/referral_bot.db" if os.path.exists("/app") or os.path.exists("/.dockerenv") else "data/referral_bot.db"
 
     WEBHOOK_HOST: str
     WEBHOOK_PATH: str = "/webhook"

@@ -132,7 +132,15 @@ async def process_add_channel(message: Message, state: FSMContext, db: AsyncSess
     if not await is_admin_async(message.from_user.id, db):
         return
 
-    text = message.text.strip()
+    text = (message.text or "").strip()
+    if not text:
+        await message.answer(
+            "❌ Noto'g'ri format.\n\n"
+            "Kanal ID (<code>-1001234567890</code>), @username yoki "
+            "taklif havolasini yuboring:\n\n"
+            "/cancel — bekor qilish"
+        )
+        return
     identifier = None
     invite_link = None
     is_private = False
@@ -242,7 +250,7 @@ async def process_channel_with_invite(message: Message, state: FSMContext, db: A
 
     data = await state.get_data()
     invite_link = data.get("invite_link")
-    text = message.text.strip()
+    text = (message.text or "").strip()
 
     if not re.match(r"^-?100\d+$", text):
         await message.answer("❌ Faqat kanal ID yuboring (masalan: <code>-1001234567890</code>):")

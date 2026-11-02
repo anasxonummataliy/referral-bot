@@ -203,9 +203,9 @@ async def start_add_gift_channel(callback: CallbackQuery, state: FSMContext, db:
 async def process_gift_title(message: Message, state: FSMContext, db: AsyncSession):
     if not await is_admin_async(message.from_user.id, db):
         return
-    title = message.text.strip()
+    title = (message.text or message.caption or "").strip()
     if len(title) < 2:
-        await message.answer("❌ Nom juda qisqa:")
+        await message.answer("❌ Nom juda qisqa yoki matn yuborilmadi:")
         return
     await state.update_data(title=title)
     await message.answer(
@@ -220,7 +220,7 @@ async def process_gift_title(message: Message, state: FSMContext, db: AsyncSessi
 async def process_gift_link(message: Message, state: FSMContext, db: AsyncSession):
     if not await is_admin_async(message.from_user.id, db):
         return
-    link = message.text.strip()
+    link = (message.text or "").strip()
     if not (link.startswith("https://") or link.startswith("http://") or link.startswith("t.me/")):
         await message.answer("❌ Noto'g'ri havola formati.")
         return
@@ -237,7 +237,7 @@ async def process_gift_link(message: Message, state: FSMContext, db: AsyncSessio
 async def process_gift_min_referrals(message: Message, state: FSMContext, db: AsyncSession):
     if not await is_admin_async(message.from_user.id, db):
         return
-    text = message.text.strip()
+    text = (message.text or "").strip()
     if not text.isdigit() or int(text) < 1:
         await message.answer("❌ Faqat musbat son kiriting:")
         return

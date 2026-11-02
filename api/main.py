@@ -1,11 +1,13 @@
-# api/main.py
-from fastapi import FastAPI, Request
+import logging
 from contextlib import asynccontextmanager
+from fastapi import FastAPI, Request
 
 from app.bot.commands import setup_bot_commands
 from app.bot.main import bot, dp
 from app.core.config import settings
 from app.database.session import init_db
+
+logger = logging.getLogger(__name__)
 
 
 @asynccontextmanager
@@ -37,7 +39,10 @@ app = FastAPI(lifespan=lifespan, title="Referral Bot")
 async def webhook(request: Request):
     """Aiogram webhook"""
     data = await request.json()
-    await dp.feed_raw_update(bot, data)
+    try:
+        await dp.feed_raw_update(bot, data)
+    except Exception as e:
+        logger.exception("Webhook update processing error: %s", e)
     return {"status": "ok"}
 
 
