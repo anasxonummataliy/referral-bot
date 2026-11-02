@@ -57,19 +57,11 @@ async def _show_contest_menu(target, db: AsyncSession, edit: bool = False):
             f"{welcome_preview or '<i>belgilanmagan</i>'}"
         )
         keyboard = InlineKeyboardMarkup(inline_keyboard=[
-            [
-                InlineKeyboardButton(text="✏️ Kirish xabari", callback_data="contest_edit_msg"),
-                InlineKeyboardButton(text="🔢 Ref soni", callback_data="contest_edit_refs"),
-            ],
-            [
-                InlineKeyboardButton(text="📣 Referral xabari", callback_data="contest_edit_referral_msg"),
-            ],
-            [
-                InlineKeyboardButton(text="🎁 Prize kanal qo'shish", callback_data="contest_set_prize"),
-            ],
-            [
-                InlineKeyboardButton(text="🗑 Konkursni tugatish", callback_data="contest_end"),
-            ],
+            [InlineKeyboardButton(text="✏️ Kirish xabari", callback_data="contest_edit_msg")],
+            [InlineKeyboardButton(text="🔢 Ref soni", callback_data="contest_edit_refs")],
+            [InlineKeyboardButton(text="📣 Referral xabari", callback_data="contest_edit_referral_msg")],
+            [InlineKeyboardButton(text="🎁 Prize kanal qo'shish", callback_data="contest_set_prize")],
+            [InlineKeyboardButton(text="🗑 Konkursni tugatish", callback_data="contest_end")],
             [InlineKeyboardButton(text="🔙 Panel", callback_data="adm_back")],
         ])
     else:

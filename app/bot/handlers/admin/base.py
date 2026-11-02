@@ -38,19 +38,11 @@ def remove_from_cache(user_id: int) -> None:
 
 def admin_main_keyboard() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(inline_keyboard=[
-        [
-            InlineKeyboardButton(text="🏆 Konkurs Sozlamalari ⚙️", callback_data="adm_contest"),
-            InlineKeyboardButton(text="👑 Prize Kanal (Yopiq) 🎁", callback_data="adm_prize"),
-        ],
-        [
-            InlineKeyboardButton(text="📢 Majburiy Kanallar 📌", callback_data="adm_channels"),
-            InlineKeyboardButton(text="👥 Foydalanuvchilar 📋", callback_data="adm_users"),
-        ],
-        [
-            InlineKeyboardButton(text="📊 Umumiy Statistika 📈", callback_data="adm_stats"),
-            InlineKeyboardButton(text="⚡️ Xabar Tarqatish 📤", callback_data="adm_broadcast"),
-        ],
-        [
-            InlineKeyboardButton(text="🛡 Adminlar Boshqaruvi 🔑", callback_data="adm_admins"),
-        ],
+        [InlineKeyboardButton(text="🏆 Konkurs Sozlamalari ⚙️", callback_data="adm_contest")],
+        [InlineKeyboardButton(text="👑 Prize Kanal (Yopiq) 🎁", callback_data="adm_prize")],
+        [InlineKeyboardButton(text="📢 Majburiy Kanallar 📌", callback_data="adm_channels")],
+        [InlineKeyboardButton(text="👥 Foydalanuvchilar 📋", callback_data="adm_users")],
+        [InlineKeyboardButton(text="📊 Umumiy Statistika 📈", callback_data="adm_stats")],
+        [InlineKeyboardButton(text="⚡️ Xabar Tarqatish 📤", callback_data="adm_broadcast")],
+        [InlineKeyboardButton(text="🛡 Adminlar Boshqaruvi 🔑", callback_data="adm_admins")],
     ])
