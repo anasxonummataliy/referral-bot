@@ -38,42 +38,26 @@ def _strip_html(text: str) -> str:
 
 def _build_share_text(contest, referral_link: str) -> str:
     """
-    Do'stga yuboriladigan matn (plain text).
-    Oxirida referral link — Telegram inline button (preview) sifatida ko'rsatadi.
-    """
-    if contest and contest.welcome_message:
-        body = _strip_html(contest.welcome_message)
-    elif contest:
-        body = (
-            f"🏆 {contest.title}\n\n"
-            f"🎯 {contest.required_referrals} ta do'st taklif qil — sovrin yutib ol!"
-        )
-    else:
-        body = "🏆 Ajoyib konkurs boshlanmoqda!"
+    Do'stga yuboriladigan matn:
+    {referral_link}
 
-    return (
-        f"{body}\n\n"
-        f"👇 Qatnashish uchun quyidagi tugmani bosing:\n"
-        f"{referral_link}"
-    )
+    {message}
+    👆 Qatnashish uchun quyidagi tugmani bosing.
+    """
+    if contest and contest.referral_message:
+        msg = _strip_html(contest.referral_message).strip()
+    elif contest and contest.welcome_message:
+        msg = _strip_html(contest.welcome_message).strip()
+    elif contest:
+        msg = f"{contest.title}"
+    else:
+        msg = "Konkursda qatnashing!"
+
+    return f"{referral_link}\n\n{msg}\n👆 Qatnashish uchun quyidagi tugmani bosing."
 
 
 def _build_user_keyboard(referral_link: str, share_text: str) -> InlineKeyboardMarkup:
-    cleaned_text = re.sub(r"https?://\S+", "", share_text)
-    cleaned_lines = [line for line in cleaned_text.splitlines() if line.strip()]
-    cleaned_text = "\n".join(cleaned_lines).strip()
-
-    full_text = f"""{cleaned_text}
-
-Havola: {referral_link}"""
-
-    share_url = "https://t.me/share/url?" + urllib.parse.urlencode(
-        {
-            "url": referral_link,  # ← link preview + redirect fix
-            "text": full_text.strip(),  # ← matn + pastda "Havola: link"
-        }
-    )
-
+    share_url = "https://t.me/share/url?" + urllib.parse.urlencode({"text": share_text})
     return InlineKeyboardMarkup(
         inline_keyboard=[
             [InlineKeyboardButton(text="🚀 Do'stlarga ulashish ↗️", url=share_url)],

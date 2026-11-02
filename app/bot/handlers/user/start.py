@@ -39,38 +39,9 @@ from app.bot.handlers.user.referral_notify import notify_referrer
 logger = logging.getLogger(__name__)
 router = Router()
 
-# ── Yuklanish animatsiyasi ────────────────────────────────────────────────────
-PROGRESS_FRAMES = [
-    "⬜⬜⬜⬜⬜  0%",
-    "🟩⬜⬜⬜⬜ 20%",
-    "🟩🟩⬜⬜⬜ 40%",
-    "🟩🟩🟩⬜⬜ 60%",
-    "🟩🟩🟩🟩⬜ 80%",
-    "🟩🟩🟩🟩🟩 100% ✅",
-]
-
-
-async def _loading_animation(message: Message) -> None:
-    try:
-        anim = await message.answer("⏳ Yuklanmoqda...")
-        for frame in PROGRESS_FRAMES:
-            await asyncio.sleep(0.22)
-            try:
-                await anim.edit_text(frame)
-            except Exception:
-                pass
-        await asyncio.sleep(0.15)
-        try:
-            await anim.delete()
-        except Exception:
-            pass
-    except Exception:
-        pass
-
-
 # ── Obuna keyboard ────────────────────────────────────────────────────────────
-def _subscription_keyboard(channels) -> InlineKeyboardMarkup:
-    """Kanallar ro'yxati + tekshirish tugmasi."""
+def _subscription_keyboard(channels, share_url: str | None = None) -> InlineKeyboardMarkup:
+    """Kanallar ro'yxati + tekshirish tugmasi + ulashish."""
     buttons = []
     for ch in channels:
         if ch.username:
@@ -89,25 +60,51 @@ def _subscription_keyboard(channels) -> InlineKeyboardMarkup:
             callback_data="check_subscription",
         )
     ])
+    if share_url:
+        buttons.append([
+            InlineKeyboardButton(text="🚀 Do'stlarga ulashish ↗️", url=share_url)
+        ])
     return InlineKeyboardMarkup(inline_keyboard=buttons)
 
 
 def _build_subscription_text(contest) -> str:
     """
-    Konkurs matni — bitta postda.
-    welcome_message bo'lsa undan foydalanadi.
+    Konkurs kirish xabari / rasm caption.
     """
     if contest and contest.welcome_message:
-        return contest.welcome_message.strip()
+        return f"{contest.welcome_message.strip()}\n\n👇 <i>Qatnashish uchun quyidagi kanallarga a'zo bo'ling:</i>"
     elif contest:
         return (
             f"🏆 <b>{contest.title}</b> 🌟\n\n"
             f"🎯 <b>{contest.required_referrals} ta</b> do'stingizni taklif qiling "
             f"va <b>yopiq VIP kanalga</b> 1 martalik link oling! 🎁\n\n"
-            "👇 <i>Botdan foydalanish uchun quyidagi kanallarga a'zo bo'ling:</i>"
+            "👇 <i>Qatnashish uchun quyidagi kanallarga a'zo bo'ling:</i>"
         )
     else:
         return "👋 <b>Assalomu alaykum!</b> ✨\n\nTez orada yangi konkurs boshlanadi — kuzatib boring! 🔔"
+
+
+async def _send_or_replace(
+    message: Message,
+    text: str,
+    reply_markup: InlineKeyboardMarkup,
+    photo_id: str | None = None,
+    edit: bool = False,
+) -> None:
+    if edit:
+        try:
+            await message.delete()
+        except Exception:
+            pass
+
+    if photo_id:
+        try:
+            await message.answer_photo(photo_id, caption=text, reply_markup=reply_markup)
+            return
+        except Exception as e:
+            logger.warning(f"Rasm yuborishda xatolik: {e}")
+
+    await message.answer(text, reply_markup=reply_markup, disable_web_page_preview=True)
 
 
 # ── Asosiy menyu ──────────────────────────────────────────────────────────────
@@ -118,10 +115,11 @@ async def show_main_menu(
     edit: bool = False,
 ) -> None:
     """
-    Obunani tekshirib, holatga qarab:
-    - Obuna yo'q → konkurs matni + kanallar bitta postda
-    - Obuna bor → asosiy menyu
+    Foydalanuvchiga rasm + caption va kanallar yoki asosiy menyuni chiqarish.
     """
+    import urllib.parse
+    from app.bot.handlers.user.share import _build_share_text
+
     user_id = message.from_user.id
     sub_service = SubscriptionService(db)
 
@@ -129,30 +127,8 @@ async def show_main_menu(
         bot=message.bot, telegram_id=user_id
     )
 
-    if not is_subscribed:
-        channels = await sub_service.get_required_channels()
-        text = _build_subscription_text(contest)
-        keyboard = _subscription_keyboard(channels)
-        photo_id = getattr(contest, "welcome_photo_file_id", None) if contest else None
+    photo_id = getattr(contest, "welcome_photo_file_id", None) if contest else None
 
-        if edit:
-            # edit_text / edit rasm qo'llab-quvvatlamaydi, shuning uchun delete + send
-            try:
-                await message.delete()
-            except Exception:
-                pass
-            if photo_id:
-                await message.answer_photo(photo_id, caption=text, reply_markup=keyboard)
-            else:
-                await message.answer(text, reply_markup=keyboard, disable_web_page_preview=True)
-        else:
-            if photo_id:
-                await message.answer_photo(photo_id, caption=text, reply_markup=keyboard)
-            else:
-                await message.answer(text, reply_markup=keyboard, disable_web_page_preview=True)
-        return
-
-    # Obuna bor — asosiy menyu
     bot_info = await message.bot.get_me()
     bot_username = settings.BOT_USERNAME or bot_info.username
 
@@ -161,39 +137,34 @@ async def show_main_menu(
         telegram_id=user_id, bot_username=bot_username
     )
 
+    share_text = _build_share_text(contest, referral_link)
+    share_url = "https://t.me/share/url?" + urllib.parse.urlencode({"text": share_text})
+
+    if not is_subscribed:
+        channels = await sub_service.get_required_channels()
+        text = _build_subscription_text(contest)
+        keyboard = _subscription_keyboard(channels, share_url=share_url)
+        await _send_or_replace(message, text, keyboard, photo_id=photo_id, edit=edit)
+        return
+
+    # Obuna bor — asosiy menyu
     user_repo = UserRepository(db)
     user = await user_repo.get_by_telegram_id(user_id)
     ref_count = user.referral_count if user else 0
     target = contest.required_referrals if contest else 5
     bar = progress_bar(ref_count, target)
-    name = message.from_user.first_name or "Foydalanuvchi"
 
+    welcome_part = f"{contest.welcome_message.strip()}\n\n" if (contest and contest.welcome_message) else ""
     text = (
-        f"👋 <b>Assalomu alaykum, {name}!</b> ✨\n\n"
-        f"🏆 <b>{contest.title}</b> 🌟\n\n"
-        f"💎 <b>Sizning ko'rsatkichingiz:</b>\n"
-        f"👥 Taklif etilgan do'stlar: <b>{ref_count} / {target}</b>\n\n"
+        f"{welcome_part}"
+        f"📊 Sizning natijangiz: <b>{ref_count} / {target} ta do'st</b>\n"
         f"{bar}\n\n"
-        "╭──────────────────────────╮\n"
         f"🔗 <b>Sizning taklif havolangiz:</b>\n"
-        f"<code>{referral_link}</code>\n"
-        "╰──────────────────────────╯\n\n"
-        "🚀 <i>Do'stlaringizga ulashing va sovrinli yopiq kanalga kiring!</i>"
+        f"<code>{referral_link}</code>"
     )
 
-    if edit:
-        try:
-            await message.edit_text(
-                text, reply_markup=main_menu_keyboard(), disable_web_page_preview=True
-            )
-        except Exception:
-            await message.answer(
-                text, reply_markup=main_menu_keyboard(), disable_web_page_preview=True
-            )
-    else:
-        await message.answer(
-            text, reply_markup=main_menu_keyboard(), disable_web_page_preview=True
-        )
+    keyboard = main_menu_keyboard(share_url=share_url)
+    await _send_or_replace(message, text, keyboard, photo_id=photo_id, edit=edit)
 
 
 # ── /start ────────────────────────────────────────────────────────────────────
@@ -272,9 +243,6 @@ async def cmd_start(message: Message, bot: Bot, db: AsyncSession):
     # ── KONKURS ───────────────────────────────────────────────────────────────
     contest_repo = ContestRepository(db)
     contest = await contest_repo.get_active_contest()
-
-    # Animatsiya
-    await _loading_animation(message)
 
     if not contest:
         await message.answer(

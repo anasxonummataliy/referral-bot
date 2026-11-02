@@ -139,18 +139,29 @@ async def admin_send_reply(message: Message, state: FSMContext, bot: Bot, db: As
         await message.answer("❌ Xatolik: user ID topilmadi.")
         return
 
-    admin_name = message.from_user.full_name or "Admin"
     try:
-        await bot.send_message(
-            chat_id=user_id,
-            text=f"📨 <b>Admin javobi ({admin_name}):</b>",
-            parse_mode="HTML",
-        )
-        await bot.copy_message(
-            chat_id=user_id,
-            from_chat_id=message.chat.id,
-            message_id=message.message_id,
-        )
+        if message.text:
+            await bot.send_message(
+                chat_id=user_id,
+                text=f"📨 <b>Admin javobi:</b>\n\n{message.text}",
+                parse_mode="HTML",
+            )
+        else:
+            caption = f"📨 <b>Admin javobi:</b>\n\n{message.caption}" if message.caption else "📨 <b>Admin javobi</b>"
+            try:
+                await bot.copy_message(
+                    chat_id=user_id,
+                    from_chat_id=message.chat.id,
+                    message_id=message.message_id,
+                    caption=caption,
+                    parse_mode="HTML",
+                )
+            except Exception:
+                await bot.copy_message(
+                    chat_id=user_id,
+                    from_chat_id=message.chat.id,
+                    message_id=message.message_id,
+                )
         await message.answer("✅ Javob yuborildi!")
     except Exception as e:
         await message.answer(f"❌ Yuborishda xato: {e}")

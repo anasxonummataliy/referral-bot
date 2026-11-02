@@ -4,26 +4,28 @@ Barcha inline keyboard — premium stiker va emojilar bilan
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 
 
-def main_menu_keyboard() -> InlineKeyboardMarkup:
-    return InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="💎 Havolani Ulashish 🚀", callback_data="share_link")],
+def main_menu_keyboard(share_url: str | None = None) -> InlineKeyboardMarkup:
+    buttons = []
+    if share_url:
+        buttons.append([InlineKeyboardButton(text="🚀 Do'stlarga ulashish ↗️", url=share_url)])
+    else:
+        buttons.append([InlineKeyboardButton(text="💎 Havolani Ulashish 🚀", callback_data="share_link")])
+
+    buttons.extend([
         [
-            InlineKeyboardButton(text="📈 Natijam ⭐️", callback_data="my_referrals"),
+            InlineKeyboardButton(text="📈 Mening natijam ⭐️", callback_data="my_referrals"),
             InlineKeyboardButton(text="👑 Sovg'am 🎁", callback_data="my_gifts"),
-        ],
-        [
-            InlineKeyboardButton(text="📜 Qoidalar ✨", callback_data="terms"),
-            InlineKeyboardButton(text="❓ Yordam 💡", callback_data="help"),
         ],
         [
             InlineKeyboardButton(text="💬 Admin bilan bog'lanish ✍️", callback_data="contact_admin"),
         ],
     ])
+    return InlineKeyboardMarkup(inline_keyboard=buttons)
 
 
-def subscription_keyboard(channels) -> InlineKeyboardMarkup:
+def subscription_keyboard(channels, share_url: str | None = None) -> InlineKeyboardMarkup:
     buttons = []
-    for i, ch in enumerate(channels, 1):
+    for ch in channels:
         if ch.username:
             link = f"https://t.me/{ch.username.lstrip('@')}"
             icon = "📢"
@@ -35,6 +37,10 @@ def subscription_keyboard(channels) -> InlineKeyboardMarkup:
     buttons.append([
         InlineKeyboardButton(text="⚡️ A'zo bo'ldim — Tekshirish ✅", callback_data="check_subscription")
     ])
+    if share_url:
+        buttons.append([
+            InlineKeyboardButton(text="🚀 Do'stlarga ulashish ↗️", url=share_url)
+        ])
     return InlineKeyboardMarkup(inline_keyboard=buttons)
 
 

@@ -88,3 +88,29 @@ class TestReferralService:
         )
 
         assert result is False
+
+
+def test_build_share_text_format():
+    """Verify that referral link is at top, separated by newlines, with 👆 and no trailing link"""
+    from app.bot.handlers.user.share import _build_share_text
+    from app.database.models import Contest
+
+    contest = Contest(
+        title="Writing 2026",
+        welcome_message="Writing 2026",
+        referral_message=None,
+        required_referrals=1,
+    )
+    ref_link = "https://t.me/hasanboevs_bot?start=7381087311"
+
+    text = _build_share_text(contest, ref_link)
+
+    expected = (
+        "https://t.me/hasanboevs_bot?start=7381087311\n\n"
+        "Writing 2026\n"
+        "👆 Qatnashish uchun quyidagi tugmani bosing."
+    )
+    assert text == expected
+    assert text.startswith("https://t.me/hasanboevs_bot?start=7381087311\n\n")
+    assert "Havola:" not in text
+    assert "👇" not in text
