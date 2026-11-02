@@ -88,46 +88,24 @@ async def send_prize_link(
 
     if is_resubscribed:
         prize_text = (
-            "✨ <b>Barcha majburiy kanallarga obuna tasdiqlandi!</b> ✨\n\n"
-            f"🎉 Siz avval <b>{contest.required_referrals} ta</b> do'st taklif qilish shartini bajargansiz!\n\n"
-            f"👑 Yopiq kanalga (<b>{channel_title}</b>) kirish uchun yangi 1 martalik havolangiz tayyor:\n\n"
-            "👇 <b>Quyidagi maxsus tugmani bosib kanalga kiring:</b>\n\n"
-            "⚠️ <b>Diqqat:</b> Bu havola faqat <b>1 marta</b> ishlaydi!\n"
-            "Uni boshqa birovga bermang — kirish huquqi faqat <b>sizga</b> tegishli.\n\n"
-            "🔒 <i>Eslatma: Agar majburiy kanallardan birontasidan chiqib ketsangiz, "
-            "yopiq kanaldan yana chiqarilasiz.</i>"
+            "✅ <b>Obuna tasdiqlandi!</b>\n\n"
+            f"<b>{channel_title}</b> kanaliga 1 martalik havolangiz:\n\n"
+            "⚠️ <i>Diqqat: Bu havola faqat 1 marta ishlaydi! Uni boshqaga bermang.</i>"
         )
     else:
         prize_text = (
-            "🏆 <b>QOYILMAQOM! TABRIKLAYMIZ!</b> 🎉\n\n"
-            f"🎯 Siz <b>{contest.required_referrals} ta</b> do'stingizni taklif qildingiz va sovrinni qo'lga kiritdingiz! 🌟\n\n"
-            f"👑 Sovg'angiz — <b>{channel_title}</b> yopiq kanaliga kirish huquqi!\n\n"
-            f"Yopiq kanalga (<b>{channel_title}</b>) kirish uchun 1 martalik havolangiz:\n\n"
-            "👇 <b>Quyidagi maxsus tugmani bosib kanalga kiring:</b>\n\n"
-            "⚠️ <b>Diqqat:</b> Bu havola faqat <b>1 marta</b> ishlaydi!\n"
-            "Uni boshqa birovga bermang — kirish huquqi faqat <b>sizga</b> tegishli.\n\n"
-            "🔒 <i>Eslatma: Agar majburiy kanallardan birontasidan chiqib ketsangiz, "
-            "yopiq kanaldan ham chiqarib yuborilasiz!</i>"
+            "🎉 <b>Tabriklaymiz! Shart bajarildi.</b>\n\n"
+            f"<b>{channel_title}</b> kanaliga 1 martalik havolangiz:\n\n"
+            "⚠️ <i>Diqqat: Bu havola faqat 1 marta ishlaydi! Uni boshqaga bermang.</i>"
         )
 
-    photo_id = getattr(contest, "welcome_photo_file_id", None)
-
     try:
-        if photo_id:
-            await bot.send_photo(
-                chat_id=user_id,
-                photo=photo_id,
-                caption=prize_text,
-                reply_markup=keyboard,
-                parse_mode="HTML",
-            )
-        else:
-            await bot.send_message(
-                chat_id=user_id,
-                text=prize_text,
-                reply_markup=keyboard,
-                parse_mode="HTML",
-            )
+        await bot.send_message(
+            chat_id=user_id,
+            text=prize_text,
+            reply_markup=keyboard,
+            parse_mode="HTML",
+        )
         logger.info(f"✅ Prize link yuborildi: user={user_id}, contest={contest.id}")
         return True
     except Exception as e:

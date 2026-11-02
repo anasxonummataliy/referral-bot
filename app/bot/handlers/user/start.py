@@ -39,6 +39,35 @@ from app.bot.handlers.user.referral_notify import notify_referrer
 logger = logging.getLogger(__name__)
 router = Router()
 
+# ── Yuklanish animatsiyasi ────────────────────────────────────────────────────
+PROGRESS_FRAMES = [
+    "⬜⬜⬜⬜⬜  0%",
+    "🟩⬜⬜⬜⬜ 20%",
+    "🟩🟩⬜⬜⬜ 40%",
+    "🟩🟩🟩⬜⬜ 60%",
+    "🟩🟩🟩🟩⬜ 80%",
+    "🟩🟩🟩🟩🟩 100% ✅",
+]
+
+
+async def _loading_animation(message: Message) -> None:
+    try:
+        anim = await message.answer("⏳ Yuklanmoqda...")
+        for frame in PROGRESS_FRAMES:
+            await asyncio.sleep(0.18)
+            try:
+                await anim.edit_text(frame)
+            except Exception:
+                pass
+        await asyncio.sleep(0.12)
+        try:
+            await anim.delete()
+        except Exception:
+            pass
+    except Exception:
+        pass
+
+
 # ── Obuna keyboard ────────────────────────────────────────────────────────────
 def _subscription_keyboard(channels) -> InlineKeyboardMarkup:
     """Kanallar ro'yxati + tekshirish tugmasi."""
@@ -56,7 +85,7 @@ def _subscription_keyboard(channels) -> InlineKeyboardMarkup:
         ])
     buttons.append([
         InlineKeyboardButton(
-            text="⚡️ A'zo bo'ldim — Tekshirish ✅",
+            text="✅ A'zo bo'ldim — Tekshirish",
             callback_data="check_subscription",
         )
     ])
@@ -153,6 +182,7 @@ async def show_main_menu(
     contest_text = (contest.welcome_message or contest.title or "").strip()
 
     text_share = (
+        f"🎯 <b>Konkurs sharti:</b> {target} ta do'st taklif qilish\n\n"
         f"📊 <b>Natijangiz:</b> {ref_count} / {target} ta do'st\n"
         f"{bar}\n\n"
         f"🔗 <b>Taklif havolangiz:</b>\n"
@@ -268,6 +298,9 @@ async def cmd_start(message: Message, bot: Bot, db: AsyncSession):
     # ── KONKURS ───────────────────────────────────────────────────────────────
     contest_repo = ContestRepository(db)
     contest = await contest_repo.get_active_contest()
+
+    # Yuklanish animatsiyasi
+    await _loading_animation(message)
 
     if not contest:
         await message.answer(

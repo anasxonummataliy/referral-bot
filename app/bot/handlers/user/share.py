@@ -60,8 +60,8 @@ def _build_user_keyboard(referral_link: str, share_text: str) -> InlineKeyboardM
     share_url = "https://t.me/share/url?" + urllib.parse.urlencode({"text": share_text})
     return InlineKeyboardMarkup(
         inline_keyboard=[
-            [InlineKeyboardButton(text="🚀 Do'stlarga ulashish ↗️", url=share_url)],
-            [InlineKeyboardButton(text="🔙 Asosiy menyu", callback_data="back_to_main")],
+            [InlineKeyboardButton(text="🚀 Do'stlarga ulashish", url=share_url)],
+            [InlineKeyboardButton(text="🔙 Orqaga", callback_data="back_to_main")],
         ]
     )
 
@@ -87,31 +87,14 @@ async def share_link_cb(callback: CallbackQuery, db: AsyncSession):
     keyboard = _build_user_keyboard(referral_link, share_text)
 
     text = (
-        "💎 <b>Sizning shaxsiy taklif havolangiz tayyor!</b> ✨\n\n"
+        f"🔗 <b>Taklif havolangiz:</b>\n"
         f"<code>{referral_link}</code>\n\n"
-        "╭────────────────────────────╮\n"
-        "📌 <b>Qanday ishlaydi?</b>\n"
-        "1️⃣ «🚀 Do'stlarga ulashish» tugmasini bosing\n"
-        "2️⃣ Do'stlaringiz yoki guruhlarga yuboring\n"
-        "3️⃣ Ular botga kirganda sizga <b>+1 do'st</b> qo'shiladi\n"
-        "╰────────────────────────────╯\n\n"
-        f"🎯 Maqsad: <b>{target} ta</b> do'st → <b>Yopiq kanal</b> 1 martalik linki! 🎁"
+        f"🎯 Maqsad: <b>{target} ta</b> do'st taklif qilish."
     )
 
-    photo_id = getattr(contest, "welcome_photo_file_id", None) if contest else None
-
-    if photo_id:
-        try:
-            await callback.message.delete()
-        except Exception:
-            pass
-        await callback.message.answer_photo(
-            photo_id, caption=text, reply_markup=keyboard
-        )
-    else:
-        await callback.message.edit_text(
-            text, reply_markup=keyboard, disable_web_page_preview=True
-        )
+    await callback.message.edit_text(
+        text, reply_markup=keyboard, disable_web_page_preview=True
+    )
 
 
 @router.message(Command("referral", "link"))
@@ -132,23 +115,10 @@ async def cmd_referral(message: Message, db: AsyncSession):
     share_text = _build_share_text(contest, referral_link)
     keyboard = _build_user_keyboard(referral_link, share_text)
 
-    photo_id = getattr(contest, "welcome_photo_file_id", None) if contest else None
-
-    if photo_id:
-        await message.answer_photo(
-            photo_id,
-            caption=(
-                f"🔗 <b>Sizning taklif havolangiz:</b>\n\n"
-                f"<code>{referral_link}</code>\n\n"
-                f"🏅 Maqsad: <b>{target} ta</b> do'st → sovrinni yutib olasiz!"
-            ),
-            reply_markup=keyboard,
-        )
-    else:
-        await message.answer(
-            f"🔗 <b>Sizning taklif havolangiz:</b>\n\n"
-            f"<code>{referral_link}</code>\n\n"
-            f"🏅 Maqsad: <b>{target} ta</b> do'st → sovrinni yutib olasiz!",
-            reply_markup=keyboard,
-            disable_web_page_preview=True,
-        )
+    await message.answer(
+        f"🔗 <b>Taklif havolangiz:</b>\n"
+        f"<code>{referral_link}</code>\n\n"
+        f"🎯 Maqsad: <b>{target} ta</b> do'st taklif qilish.",
+        reply_markup=keyboard,
+        disable_web_page_preview=True,
+    )

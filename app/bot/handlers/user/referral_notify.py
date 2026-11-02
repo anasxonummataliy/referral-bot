@@ -40,32 +40,14 @@ async def notify_referrer(
     remaining = max(0, target - ref_count)
     prize_name = (contest.prize_channel_title or "Sovrin kanal") if contest else "Sovrin kanal"
 
-    # ── Matn ─────────────────────────────────────────────────────────────────
-    parts = []
+    from app.bot.handlers.user.share import _build_share_text
 
-    if contest and getattr(contest, "referral_message", None):
-        parts.append(contest.referral_message.strip())
-        parts.append("")
-
-    parts.append(f"🎉 <b>{new_user_name}</b> sizning havolangiz orqali qo'shildi! (<b>+1 do'st</b>) ⭐️")
-    parts.append("")
-
-    if contest:
-        parts.append(f"🏆 <b>{contest.title}</b> 🌟")
-        parts.append(f"📊 Natijangiz: <b>{ref_count} / {target} ta do'st</b>")
-        parts.append("")
-        if remaining > 0:
-            parts.append(
-                f"🎯 Yana <b>{remaining} ta</b> do'st taklif qiling → "
-                f"<b>{prize_name}</b> yopiq kanaliga kiring! 🎁"
-            )
-        else:
-            parts.append(
-                f"✅ <b>Tabriklaymiz! Shartni bajardingiz!</b> — "
-                f"<b>{prize_name}</b> 1 martalik havolasi yuborilmoqda... 👑"
-            )
-
-    full_text = "\n".join(parts)
+    text = (
+        f"👤 <b>{new_user_name}</b> taklif havolangiz orqali qo'shildi! (+1)\n\n"
+        f"📊 Natijangiz: <b>{ref_count} / {target}</b> ta do'st"
+    )
+    if remaining > 0:
+        text += f"\nYana <b>{remaining} ta</b> do'st taklif qilishingiz kerak."
 
     # ── Keyboard — referrerning deeplinki bilan ulashish ─────────────────────
     bot_info = await bot.get_me()
@@ -77,42 +59,24 @@ async def notify_referrer(
         encode=False,
         link_type="start",
     )
-    encoded_link = urllib.parse.quote(referral_link, safe="")
-    # Share text — xabar bilan birga
-    share_text = urllib.parse.quote(
-        f"{full_text}\n\n👇 Qatnashish uchun bosing:",
-        safe=""
-    )
+    share_msg = _build_share_text(contest, referral_link)
+    share_url = "https://t.me/share/url?" + urllib.parse.urlencode({"text": share_msg})
 
     keyboard = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(
-            text="💎 Shaxsiy havolangiz",
-            url=referral_link,
-        )],
-        [InlineKeyboardButton(
-            text="🚀 Do'stlarga ulashish ↗️",
-            url=f"https://t.me/share/url?url={encoded_link}&text={share_text}",
+            text="🚀 Do'stlarga ulashish",
+            url=share_url,
         )],
     ])
 
     try:
-        photo_id = getattr(contest, "welcome_photo_file_id", None) if contest else None
-        if photo_id:
-            await bot.send_photo(
-                chat_id=referrer_telegram_id,
-                photo=photo_id,
-                caption=full_text,
-                reply_markup=keyboard,
-                parse_mode="HTML",
-            )
-        else:
-            await bot.send_message(
-                chat_id=referrer_telegram_id,
-                text=full_text,
-                reply_markup=keyboard,
-                parse_mode="HTML",
-                disable_web_page_preview=True,
-            )
+        await bot.send_message(
+            chat_id=referrer_telegram_id,
+            text=text,
+            reply_markup=keyboard,
+            parse_mode="HTML",
+            disable_web_page_preview=True,
+        )
         logger.info(f"notify_referrer OK: referrer={referrer_telegram_id}, new={new_user_name}")
     except Exception as e:
         logger.error(f"notify_referrer XATO (referrer={referrer_telegram_id}): {e}")

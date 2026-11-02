@@ -20,19 +20,14 @@ async def terms_cb(callback: CallbackQuery, db: AsyncSession):
     contest_repo = ContestRepository(db)
     contest = await contest_repo.get_active_contest()
     target = contest.required_referrals if contest else 5
-    prize = contest.prize_channel_title if contest else "Prize Kanal"
+    prize = contest.prize_channel_title if contest else "Sovg'a kanali"
 
     text = (
-        "📜 <b>Konkurs Qoidalari va Shartlari</b> ✨\n\n"
-        f"🏆 <b>{contest.title if contest else 'Konkurs'}</b> 🌟\n\n"
-        "╭────────────────────────────╮\n"
-        "1️⃣ O'z maxsus taklif havolangiz orqali do'stlaringizni taklif qiling.\n"
-        "2️⃣ Taklif qilingan do'st barcha majburiy kanallarga a'zo bo'lishi shart.\n"
-        "3️⃣ Bitta akkaunt faqat 1 marta referral sifatida hisoblanadi.\n"
-        f"4️⃣ <b>{target} ta do'st</b> taklif qilganingizda sizga <b>{prize}</b> yopiq kanaliga <b>1 martalik kirish havolasi</b> beriladi! 🎁\n"
-        "5️⃣ ⚠️ <b>Muhim:</b> Agar majburiy kanallarning birontasidan chiqib ketsangiz, yopiq kanaldan ham chiqarilasiz!\n"
-        "6️⃣ Qayta barcha kanallarga a'zo bo'lsangiz, yangi 1 martalik link taqdim etiladi! 🚀\n"
-        "╰────────────────────────────╯"
+        "📜 <b>Konkurs shartlari:</b>\n\n"
+        f"1. Taklif havolangizni do'stlaringizga yuboring.\n"
+        f"2. Do'stlaringiz kanallarga a'zo bo'lishi kerak.\n"
+        f"3. <b>{target} ta do'st</b> to'plaganingizda <b>{prize}</b> kanaliga 1 martalik link beriladi.\n\n"
+        "<i>Eslatma: Majburiy kanallardan chiqib ketsangiz, sovg'a kanalidan ham chiqarilasiz.</i>"
     )
     await callback.message.edit_text(text, reply_markup=back_keyboard())
 
@@ -42,13 +37,11 @@ async def help_cb(callback: CallbackQuery):
     await safe_answer(callback)
 
     text = (
-        "❓ <b>Qo'llanma va Yordam</b> 💡\n\n"
-        "🤖 <b>Botdagi mavjud buyruqlar:</b>\n"
-        "🚀 /start — Botning bosh menyusiga qaytish\n"
-        "🔗 /referral — Shaxsiy taklif havolangizni olish\n"
-        "📊 /mystats — Takliflaringiz natijasini tekshirish\n"
-        "❓ /help — Foydalanish yo'riqnomasi\n\n"
-        "💬 <i>Savol yoki takliflar bo'lsa, admin bilan bog'laning!</i>"
+        "❓ <b>Yordam</b>\n\n"
+        "/start — Bosh menyu\n"
+        "/referral — Taklif havolasi\n"
+        "/mystats — Natijangiz\n\n"
+        "Savollaringiz bo'lsa, «✉️ Bog'lanish» tugmasi orqali yozishingiz mumkin."
     )
     await callback.message.edit_text(text, reply_markup=back_keyboard())
 
@@ -56,11 +49,9 @@ async def help_cb(callback: CallbackQuery):
 @router.message(Command("help"))
 async def cmd_help(message: Message):
     await message.answer(
-        "❓ <b>Qo'llanma va Yordam</b> 💡\n\n"
-        "🤖 <b>Botdagi mavjud buyruqlar:</b>\n"
-        "🚀 /start — Botning bosh menyusiga qaytish\n"
-        "🔗 /referral — Shaxsiy taklif havolangizni olish\n"
-        "📊 /mystats — Takliflaringiz natijasini tekshirish\n"
-        "❓ /help — Foydalanish yo'riqnomasi\n\n"
-        "💬 <i>Savol yoki takliflar bo'lsa, admin bilan bog'laning!</i>"
+        "❓ <b>Yordam</b>\n\n"
+        "/start — Bosh menyu\n"
+        "/referral — Taklif havolasi\n"
+        "/mystats — Natijangiz\n\n"
+        "Savollaringiz bo'lsa, «✉️ Bog'lanish» tugmasi orqali yozishingiz mumkin."
     )

@@ -247,4 +247,4 @@ class TestChatMemberUpdatedFlow:
         bot.send_message.assert_awaited_once()
         args, kwargs = bot.send_message.call_args
         assert kwargs["chat_id"] == 777888
-        assert "yangi 1 martalik havolangiz" in kwargs["text"]
+        assert "1 martalik havolangiz" in kwargs["text"]

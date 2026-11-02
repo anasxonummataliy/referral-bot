@@ -42,20 +42,18 @@ async def my_referrals_cb(callback: CallbackQuery, db: AsyncSession):
     bar = progress_bar(ref_count, target)
 
     text = (
-        f"📈 <b>Sizning umumiy natijangiz</b> ⭐️\n\n"
-        f"👥 Tasdiqlangan do'stlar: <b>{ref_count} ta</b>\n"
-        f"🎯 Kerakli marra: <b>{target} ta</b>\n\n"
+        f"📊 <b>Natijangiz:</b> {ref_count} / {target} ta do'st\n"
         f"{bar}\n\n"
     )
     if referrals:
-        text += "👑 <b>So'nggi qo'shilgan do'stlar:</b>\n"
-        for i, ref in enumerate(referrals[:10], 1):
-            name = ref.referred.full_name if ref.referred else "Noma'lum"
-            text += f"  {i}. 👤 <b>{name}</b>\n"
-        if len(referrals) > 10:
-            text += f"\n...va yana <b>{len(referrals) - 10}</b> nafar ishtirokchi ✨"
+        text += "👥 <b>Do'stlaringiz:</b>\n"
+        for i, ref in enumerate(referrals[:5], 1):
+            name = ref.referred.full_name if ref.referred else "Foydalanuvchi"
+            text += f"{i}. {name}\n"
+        if len(referrals) > 5:
+            text += f"...va yana {len(referrals) - 5} nafar"
     else:
-        text += "💡 <i>Siz hali hech kimni taklif qilmadingiz.</i>\nDo'stlaringizga havolangizni yuboring va sovrin oling! 🚀"
+        text += "Hali hech kimni taklif qilmadingiz."
 
     await callback.message.edit_text(text, reply_markup=back_keyboard())
 
@@ -94,45 +92,33 @@ async def my_gifts_cb(callback: CallbackQuery, db: AsyncSession):
                     await user_repo.update_prize_access(user_id, False)
 
             text = (
-                f"🎁 <b>Sovg'a & Yopiq kanal</b> 👑\n\n"
-                f"🏆 <b>{contest.title}</b>\n"
-                f"🔒 Maxsus kanal: <b>{prize_name}</b>\n"
-                f"✅ Referral sharti: <b>{user_refs} / {target}</b> (Bajarilgan!)\n\n"
-                "⚠️ <b>Lekin siz majburiy obuna kanallaridan biridan chiqib ketgansiz!</b> ❗️\n\n"
-                "Yopiq kanalga kirish havolasini olish uchun avval barcha majburiy kanallarga qayta a'zo bo'ling."
+                f"⚠️ <b>Obuna bekor qilingan!</b>\n\n"
+                f"Sovg'ani olish uchun barcha majburiy kanallarga qayta a'zo bo'ling."
             )
             keyboard = InlineKeyboardMarkup(inline_keyboard=[
-                [InlineKeyboardButton(text="⚡️ A'zolikni tasdiqlash ✅", callback_data="check_subscription")],
-                [InlineKeyboardButton(text="🔙 Asosiy menyu", callback_data="back_to_main")],
+                [InlineKeyboardButton(text="⚡️ A'zolikni tekshirish", callback_data="check_subscription")],
+                [InlineKeyboardButton(text="🔙 Orqaga", callback_data="back_to_main")],
             ])
             await callback.message.edit_text(text, reply_markup=keyboard)
             return
 
         text = (
-            f"🎁 <b>Tabriklaymiz! Sovg'angiz tayyor!</b> 👑\n\n"
-            f"🏆 <b>{contest.title}</b>\n"
-            f"🔒 Maxsus kanal: <b>{prize_name}</b>\n"
-            f"✅ Bajarildi: <b>{user_refs} / {target} ta do'st</b> 🌟\n\n"
-            "🎉 <i>Siz barcha shartlarni bajargansiz va yopiq kanalga kirish huquqiga egasiz!</i>\n\n"
-            "👇 <b>Quyidagi tugmani bosib 1 martalik maxsus havola oling:</b>"
+            f"🎁 <b>Sovg'a: {prize_name}</b>\n\n"
+            f"✅ Shart bajarilgan ({user_refs}/{target} ta do'st).\n\n"
+            f"Kirish havolasini olish uchun tugmani bosing:"
         )
         keyboard = InlineKeyboardMarkup(inline_keyboard=[
-            [InlineKeyboardButton(text="👑 1 martalik linkni olish ➔", callback_data="get_prize_link")],
-            [InlineKeyboardButton(text="🔙 Asosiy menyu", callback_data="back_to_main")],
+            [InlineKeyboardButton(text="🔗 Havolani olish", callback_data="get_prize_link")],
+            [InlineKeyboardButton(text="🔙 Orqaga", callback_data="back_to_main")],
         ])
         await callback.message.edit_text(text, reply_markup=keyboard)
         return
     else:
         needed = target - user_refs
-        status = f"🔒 Yana <b>{needed} ta</b> do'st kerak ({user_refs}/{target})"
-        note = f"🎯 {target} ta do'st taklif qiling va maxsus yopiq kanalga kiring! 🚀"
-
         text = (
-            f"🎁 <b>Sovg'a & Yopiq kanal</b> 👑\n\n"
-            f"🏆 <b>{contest.title}</b>\n\n"
-            f"🔒 Sovrin: <b>{prize_name}</b>\n"
-            f"{status}\n\n"
-            f"{note}"
+            f"🎁 <b>Sovg'a: {prize_name}</b>\n\n"
+            f"Holat: <b>{user_refs} / {target}</b> ta do'st\n"
+            f"Yana <b>{needed} ta</b> do'st taklif qilishingiz kerak."
         )
         await callback.message.edit_text(text, reply_markup=back_keyboard())
 
