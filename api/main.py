@@ -10,6 +10,10 @@ from app.database.session import init_db
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     await init_db()
+    bot_info = await bot.get_me()
+    if not settings.BOT_USERNAME:
+        settings.BOT_USERNAME = bot_info.username
+    print(f"🤖 Bot ishga tushdi: @{bot_info.username} ({bot_info.id})")
     await bot.set_webhook(
         url=f"{settings.WEBHOOK_HOST}{settings.WEBHOOK_PATH}",
         drop_pending_updates=True,
