@@ -143,24 +143,44 @@ async def show_main_menu(
         await _send_or_replace(message, text, keyboard, photo_id=photo_id, edit=edit)
         return
 
-    # Obuna bor — asosiy menyu
+    # Obuna bor — 1-xabar: Faqat konkurs rasmi va matni; 2-xabar: Alohida matnda taklif/ulashish
     user_repo = UserRepository(db)
     user = await user_repo.get_by_telegram_id(user_id)
     ref_count = user.referral_count if user else 0
     target = contest.required_referrals if contest else 5
     bar = progress_bar(ref_count, target)
 
-    welcome_part = f"{contest.welcome_message.strip()}\n\n" if (contest and contest.welcome_message) else ""
-    text = (
-        f"{welcome_part}"
-        f"📊 Sizning natijangiz: <b>{ref_count} / {target} ta do'st</b>\n"
+    contest_text = (contest.welcome_message or contest.title or "").strip()
+
+    text_share = (
+        f"📊 <b>Sizning natijangiz:</b> <b>{ref_count} / {target} ta do'st</b>\n"
         f"{bar}\n\n"
         f"🔗 <b>Sizning taklif havolangiz:</b>\n"
         f"<code>{referral_link}</code>"
     )
-
     keyboard = main_menu_keyboard(share_url=share_url)
-    await _send_or_replace(message, text, keyboard, photo_id=photo_id, edit=edit)
+
+    if edit:
+        # Masalan, 'my_referrals' yoki 'my_gifts'dan 'Orqaga' bosilganda
+        try:
+            await message.edit_text(text_share, reply_markup=keyboard, disable_web_page_preview=True)
+            return
+        except Exception:
+            pass
+
+    # 1-xabar: Rasm va konkurs matni
+    if photo_id:
+        try:
+            await message.answer_photo(photo_id, caption=contest_text)
+        except Exception as e:
+            logger.warning(f"Rasm yuborishda xatolik: {e}")
+            if contest_text:
+                await message.answer(contest_text, disable_web_page_preview=True)
+    elif contest_text:
+        await message.answer(contest_text, disable_web_page_preview=True)
+
+    # 2-xabar: Pastda alohida matnda taklif/ulashish
+    await message.answer(text_share, reply_markup=keyboard, disable_web_page_preview=True)
 
 
 # ── /start ────────────────────────────────────────────────────────────────────
