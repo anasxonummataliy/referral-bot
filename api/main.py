@@ -2,6 +2,7 @@
 from fastapi import FastAPI, Request
 from contextlib import asynccontextmanager
 
+from app.bot.commands import setup_bot_commands
 from app.bot.main import bot, dp
 from app.core.config import settings
 from app.database.session import init_db
@@ -14,6 +15,10 @@ async def lifespan(app: FastAPI):
     if not settings.BOT_USERNAME:
         settings.BOT_USERNAME = bot_info.username
     print(f"🤖 Bot ishga tushdi: @{bot_info.username} ({bot_info.id})")
+    try:
+        await setup_bot_commands(bot, admin_ids=settings.ADMIN_IDS)
+    except Exception as e:
+        print(f"⚠️ Commandlarni o'rnatishda xatolik: {e}")
     await bot.set_webhook(
         url=f"{settings.WEBHOOK_HOST}{settings.WEBHOOK_PATH}",
         drop_pending_updates=True,
