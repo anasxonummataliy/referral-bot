@@ -23,7 +23,7 @@ def main_menu_keyboard(share_url: str | None = None) -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(inline_keyboard=buttons)
 
 
-def subscription_keyboard(channels, share_url: str | None = None) -> InlineKeyboardMarkup:
+def subscription_keyboard(channels) -> InlineKeyboardMarkup:
     buttons = []
     for ch in channels:
         if ch.username:
@@ -37,10 +37,6 @@ def subscription_keyboard(channels, share_url: str | None = None) -> InlineKeybo
     buttons.append([
         InlineKeyboardButton(text="⚡️ A'zo bo'ldim — Tekshirish ✅", callback_data="check_subscription")
     ])
-    if share_url:
-        buttons.append([
-            InlineKeyboardButton(text="🚀 Do'stlarga ulashish ↗️", url=share_url)
-        ])
     return InlineKeyboardMarkup(inline_keyboard=buttons)
 
 

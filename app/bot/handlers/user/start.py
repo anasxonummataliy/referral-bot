@@ -40,8 +40,8 @@ logger = logging.getLogger(__name__)
 router = Router()
 
 # ── Obuna keyboard ────────────────────────────────────────────────────────────
-def _subscription_keyboard(channels, share_url: str | None = None) -> InlineKeyboardMarkup:
-    """Kanallar ro'yxati + tekshirish tugmasi + ulashish."""
+def _subscription_keyboard(channels) -> InlineKeyboardMarkup:
+    """Kanallar ro'yxati + tekshirish tugmasi."""
     buttons = []
     for ch in channels:
         if ch.username:
@@ -60,10 +60,6 @@ def _subscription_keyboard(channels, share_url: str | None = None) -> InlineKeyb
             callback_data="check_subscription",
         )
     ])
-    if share_url:
-        buttons.append([
-            InlineKeyboardButton(text="🚀 Do'stlarga ulashish ↗️", url=share_url)
-        ])
     return InlineKeyboardMarkup(inline_keyboard=buttons)
 
 
@@ -143,7 +139,7 @@ async def show_main_menu(
     if not is_subscribed:
         channels = await sub_service.get_required_channels()
         text = _build_subscription_text(contest)
-        keyboard = _subscription_keyboard(channels, share_url=share_url)
+        keyboard = _subscription_keyboard(channels)
         await _send_or_replace(message, text, keyboard, photo_id=photo_id, edit=edit)
         return
 
