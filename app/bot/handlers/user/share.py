@@ -76,8 +76,8 @@ Havola: {referral_link}"""
 
     return InlineKeyboardMarkup(
         inline_keyboard=[
-            [InlineKeyboardButton(text="📤 Do'stlarga ulashish ↗", url=share_url)],
-            [InlineKeyboardButton(text="🔙 Orqaga", callback_data="back_to_main")],
+            [InlineKeyboardButton(text="🚀 Do'stlarga ulashish ↗️", url=share_url)],
+            [InlineKeyboardButton(text="🔙 Asosiy menyu", callback_data="back_to_main")],
         ]
     )
 
@@ -103,13 +103,15 @@ async def share_link_cb(callback: CallbackQuery, db: AsyncSession):
     keyboard = _build_user_keyboard(referral_link, share_text)
 
     text = (
-        "🔗 <b>Taklif havolangiz tayyor!</b>\n\n"
+        "💎 <b>Sizning shaxsiy taklif havolangiz tayyor!</b> ✨\n\n"
         f"<code>{referral_link}</code>\n\n"
+        "╭────────────────────────────╮\n"
         "📌 <b>Qanday ishlaydi?</b>\n"
-        "1️⃣ «Do'stlarga ulashish» tugmasini bosing\n"
-        "2️⃣ Do'stingizga yuboring — u botga kiradi\n"
-        "3️⃣ Sizga avtomatik <b>+1</b> qo'shiladi\n\n"
-        f"🏅 Maqsad: <b>{target} ta</b> do'st → sovrinni yutib olasiz!"
+        "1️⃣ «🚀 Do'stlarga ulashish» tugmasini bosing\n"
+        "2️⃣ Do'stlaringiz yoki guruhlarga yuboring\n"
+        "3️⃣ Ular botga kirganda sizga <b>+1 do'st</b> qo'shiladi\n"
+        "╰────────────────────────────╯\n\n"
+        f"🎯 Maqsad: <b>{target} ta</b> do'st → <b>Yopiq kanal</b> 1 martalik linki! 🎁"
     )
 
     photo_id = getattr(contest, "welcome_photo_file_id", None) if contest else None

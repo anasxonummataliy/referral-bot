@@ -28,7 +28,7 @@ class ReferralService:
         return create_deep_link(
             username=bot_username,
             payload=str(telegram_id),
-            encode=True,
+            encode=False,
             link_type="start",
         )
 
@@ -58,6 +58,9 @@ class ReferralService:
         if new_user.id == referrer.id:
             return False
 
+        if new_user.referrer_id is not None:
+            return False
+
         # Yangi user allaqachon boshqa birovning referrali bo'lmasin
         existing = await self.referral_repo.get_by_referred_id(new_user.id)
         if existing:
@@ -72,6 +75,9 @@ class ReferralService:
             referrer_id=referrer.id,
             referred_id=new_user.id,
         )
+
+        # Yangi userning referrer_id sini yangilaymiz
+        await self.user_repo.update(new_user.id, referrer_id=referrer.id)
 
         # referral_count +1 (DB da yangilanadi)
         await self.user_repo.increment_referral_count(referrer_telegram_id)

@@ -68,6 +68,21 @@ class SubscriptionMiddleware(BaseMiddleware):
         if is_subscribed:
             return await handler(event, data)
 
+        # Obuna yo'q bo'lsa — agar foydalanuvchida yopiq kanalga kirish huquqi bo'lsa yoki referral bajargan bo'lsa,
+        # uni yopiq kanaldan chiqarib yuboramiz
+        from app.repositories.contest_repo import ContestRepository
+        from app.repositories.user_repo import UserRepository
+        from app.bot.handlers.user.prize import kick_user_from_prize_channel
+
+        contest_repo = ContestRepository(db)
+        contest = await contest_repo.get_active_contest()
+        if contest and contest.prize_channel_id:
+            user_repo = UserRepository(db)
+            db_user = await user_repo.get_by_telegram_id(user_id)
+            if db_user and (db_user.has_prize_access or db_user.referral_count >= contest.required_referrals):
+                await kick_user_from_prize_channel(data["bot"], contest.prize_channel_id, user_id)
+                await user_repo.update_prize_access(user_id, False)
+
         # Obuna yo'q — konkurs matni + kanallar
         await self._send_subscription_prompt(event, db)
         return

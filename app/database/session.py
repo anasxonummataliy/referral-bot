@@ -35,11 +35,16 @@ async def get_db() -> AsyncGenerator[AsyncSession, None]:
 async def init_db():
     """Jadvallarni yaratish"""
     # Barcha modellarni import qilish
-    from app.database.models import User, Referral, Channel, SecretChannel  # noqa
+    from app.database.models import User, Referral, Channel, SecretChannel, Contest, Admin  # noqa
     from app.database.base import Base
+    from sqlalchemy import text
 
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
+        try:
+            await conn.execute(text("ALTER TABLE users ADD COLUMN has_prize_access BOOLEAN DEFAULT 0"))
+        except Exception:
+            pass
 
 
 async def drop_db():

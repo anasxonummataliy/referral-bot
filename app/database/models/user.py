@@ -22,6 +22,9 @@ class User(Base):
     # Majburiy obuna holati
     is_subscribed: Mapped[bool] = mapped_column(Boolean, default=False)
 
+    # Yopiq kanal (sovg'a) ga kirish huquqi berilganmi
+    has_prize_access: Mapped[bool] = mapped_column(Boolean, default=False)
+
     # Qo'shimcha
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
 

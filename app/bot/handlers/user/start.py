@@ -29,7 +29,11 @@ from app.repositories.contest_repo import ContestRepository
 from app.bot.handlers.admin.base import is_admin_async, admin_main_keyboard
 from app.bot.handlers.user.utils import safe_answer, progress_bar
 from app.bot.handlers.user.keyboards import main_menu_keyboard
-from app.bot.handlers.user.prize import check_and_send_prize
+from app.bot.handlers.user.prize import (
+    check_and_send_prize,
+    send_prize_link,
+    kick_user_from_prize_channel,
+)
 from app.bot.handlers.user.referral_notify import notify_referrer
 
 logger = logging.getLogger(__name__)
@@ -77,11 +81,11 @@ def _subscription_keyboard(channels) -> InlineKeyboardMarkup:
             link = invite or f"https://t.me/c/{abs(ch.channel_id)}"
             icon = "🔒"
         buttons.append([
-            InlineKeyboardButton(text=f"{icon} {ch.title}", url=link)
+            InlineKeyboardButton(text=f"{icon} {ch.title} ↗️", url=link)
         ])
     buttons.append([
         InlineKeyboardButton(
-            text="✅ A'zo bo'ldim — tekshirish",
+            text="⚡️ A'zo bo'ldim — Tekshirish ✅",
             callback_data="check_subscription",
         )
     ])
@@ -97,12 +101,13 @@ def _build_subscription_text(contest) -> str:
         return contest.welcome_message.strip()
     elif contest:
         return (
-            f"🏆 <b>{contest.title}</b>\n\n"
-            f"🎯 <b>{contest.required_referrals} ta</b> do'st taklif qiling "
-            f"va sovrin yutib oling!"
+            f"🏆 <b>{contest.title}</b> 🌟\n\n"
+            f"🎯 <b>{contest.required_referrals} ta</b> do'stingizni taklif qiling "
+            f"va <b>yopiq VIP kanalga</b> 1 martalik link oling! 🎁\n\n"
+            "👇 <i>Botdan foydalanish uchun quyidagi kanallarga a'zo bo'ling:</i>"
         )
     else:
-        return "👋 <b>Assalomu alaykum!</b>\n\nTez orada yangi konkurs boshlanadi — kuzatib boring!"
+        return "👋 <b>Assalomu alaykum!</b> ✨\n\nTez orada yangi konkurs boshlanadi — kuzatib boring! 🔔"
 
 
 # ── Asosiy menyu ──────────────────────────────────────────────────────────────
@@ -164,14 +169,16 @@ async def show_main_menu(
     name = message.from_user.first_name or "Foydalanuvchi"
 
     text = (
-        f"👋 <b>Xush kelibsiz, {name}!</b>\n\n"
-        f"🏆 <b>{contest.title}</b>\n\n"
-        f"📊 <b>Sizning natijangiz:</b>\n"
-        f"✅ Tasdiqlangan do'stlar: <b>{ref_count} / {target}</b>\n\n"
+        f"👋 <b>Assalomu alaykum, {name}!</b> ✨\n\n"
+        f"🏆 <b>{contest.title}</b> 🌟\n\n"
+        f"💎 <b>Sizning ko'rsatkichingiz:</b>\n"
+        f"👥 Taklif etilgan do'stlar: <b>{ref_count} / {target}</b>\n\n"
         f"{bar}\n\n"
-        "━━━━━━━━━━━━━━━━━━━\n"
+        "╭──────────────────────────╮\n"
         f"🔗 <b>Sizning taklif havolangiz:</b>\n"
-        f"<code>{referral_link}</code>"
+        f"<code>{referral_link}</code>\n"
+        "╰──────────────────────────╯\n\n"
+        "🚀 <i>Do'stlaringizga ulashing va sovrinli yopiq kanalga kiring!</i>"
     )
 
     if edit:
@@ -301,6 +308,20 @@ async def check_subscription_cb(callback: CallbackQuery, db: AsyncSession):
         contest_repo = ContestRepository(db)
         contest = await contest_repo.get_active_contest()
 
+        # Agar foydalanuvchi yetarli referral to'plagan bo'lsa va kirish huquqi faol bo'lmasa,
+        # unga yangi 1 martalik link beriladi!
+        user_repo = UserRepository(db)
+        user = await user_repo.get_by_telegram_id(user_id)
+        if contest and contest.prize_channel_id and user and user.referral_count >= contest.required_referrals:
+            if not user.has_prize_access:
+                await send_prize_link(
+                    bot=callback.bot,
+                    user_id=user_id,
+                    contest=contest,
+                    is_resubscribed=True,
+                )
+                await user_repo.update_prize_access(user_id, True)
+
         if not contest:
             await callback.message.answer(
                 "⏳ Hozircha aktiv konkurs mavjud emas.\n\nTez orada e'lon qilinadi!"
@@ -309,6 +330,16 @@ async def check_subscription_cb(callback: CallbackQuery, db: AsyncSession):
 
         await show_main_menu(callback.message, db, contest)
     else:
+        # Obunani tekshirishda a'zo bo'lmaganligi aniqlansa va prize huquqi bo'lsa — prize kanaldan chiqarish
+        contest_repo = ContestRepository(db)
+        contest = await contest_repo.get_active_contest()
+        if contest and contest.prize_channel_id:
+            user_repo = UserRepository(db)
+            user = await user_repo.get_by_telegram_id(user_id)
+            if user and (user.has_prize_access or user.referral_count >= contest.required_referrals):
+                await kick_user_from_prize_channel(callback.bot, contest.prize_channel_id, user_id)
+                await user_repo.update_prize_access(user_id, False)
+
         await safe_answer(
             callback,
             "❌ Siz hali barcha kanallarga a'zo bo'lmagansiz!\n"

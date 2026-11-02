@@ -46,8 +46,9 @@ async def safe_answer(
 def progress_bar(current: int, total: int) -> str:
     if total <= 0:
         total = 5
-    filled = min(int(current / total * 5), 5)
-    empty = 5 - filled
     pct = min(int(current / total * 100), 100)
+    bar_length = 8
+    filled = min(int((current / total) * bar_length), bar_length)
+    empty = bar_length - filled
     bar = "🟩" * filled + "⬜" * empty
-    return f"{bar}\n{current}/{total} ({pct}%)"
+    return f"📊 Natija: <b>{current} / {total}</b> ta do'st (<b>{pct}%</b>)\n[{bar}]"

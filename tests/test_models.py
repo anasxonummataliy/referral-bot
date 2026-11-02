@@ -1,9 +1,9 @@
 """Unit tests for database models"""
 
 import pytest
-import pytest_asyncio
 from sqlalchemy.ext.asyncio import AsyncSession
-from app.database.models import User, Referral
+
+from app.database.models import Referral, User
 
 
 @pytest.mark.asyncio
@@ -61,22 +61,14 @@ class TestReferralModel:
 
     async def test_referral_creation(self, db_session: AsyncSession):
         """Test creating a referral"""
-        # Create users first
-        referrer = User(
-            telegram_id=111111111,
-            full_name="Referrer",
-        )
-        referred = User(
-            telegram_id=222222222,
-            full_name="Referred User",
-        )
+        referrer = User(telegram_id=111111111, full_name="Referrer")
+        referred = User(telegram_id=222222222, full_name="Referred User")
         db_session.add_all([referrer, referred])
         await db_session.commit()
 
-        # Create referral
         referral = Referral(
             referrer_id=referrer.id,
-            referred_user_id=referred.id,
+            referred_id=referred.id,
         )
         db_session.add(referral)
         await db_session.commit()
@@ -84,7 +76,7 @@ class TestReferralModel:
         retrieved = await db_session.get(Referral, referral.id)
         assert retrieved is not None
         assert retrieved.referrer_id == referrer.id
-        assert retrieved.referred_user_id == referred.id
+        assert retrieved.referred_id == referred.id
 
 
 @pytest.mark.asyncio
@@ -93,10 +85,7 @@ class TestUserRelationships:
 
     async def test_user_referrer_relationship(self, db_session: AsyncSession):
         """Test referrer relationship"""
-        referrer = User(
-            telegram_id=111111111,
-            full_name="Referrer",
-        )
+        referrer = User(telegram_id=111111111, full_name="Referrer")
         referral_user = User(
             telegram_id=222222222,
             full_name="Referred User",
@@ -105,29 +94,17 @@ class TestUserRelationships:
         db_session.add_all([referrer, referral_user])
         await db_session.commit()
 
-        # Refresh to load relationships
-        await db_session.refresh(referral_user)
+        await db_session.refresh(referral_user, ["referrer"])
         assert referral_user.referrer_id == referrer.id
         assert referral_user.referrer.telegram_id == 111111111
 
     async def test_user_referrals_relationship(self, db_session: AsyncSession):
         """Test referrals (inverse) relationship"""
-        referrer = User(
-            telegram_id=111111111,
-            full_name="Referrer",
-        )
-        referred1 = User(
-            telegram_id=222222222,
-            full_name="Referred User 1",
-            referrer=referrer,
-        )
-        referred2 = User(
-            telegram_id=333333333,
-            full_name="Referred User 2",
-            referrer=referrer,
-        )
+        referrer = User(telegram_id=111111111, full_name="Referrer")
+        referred1 = User(telegram_id=222222222, full_name="Referred User 1", referrer=referrer)
+        referred2 = User(telegram_id=333333333, full_name="Referred User 2", referrer=referrer)
         db_session.add_all([referrer, referred1, referred2])
         await db_session.commit()
 
-        await db_session.refresh(referrer)
+        await db_session.refresh(referrer, ["referrals"])
         assert len(referrer.referrals) == 2

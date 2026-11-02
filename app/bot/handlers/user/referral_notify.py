@@ -47,22 +47,22 @@ async def notify_referrer(
         parts.append(contest.referral_message.strip())
         parts.append("")
 
-    parts.append(f"🎉 <b>{new_user_name}</b> sizning havolangiz orqali qo'shildi!")
+    parts.append(f"🎉 <b>{new_user_name}</b> sizning havolangiz orqali qo'shildi! (<b>+1 do'st</b>) ⭐️")
     parts.append("")
 
     if contest:
-        parts.append(f"🏆 <b>{contest.title}</b>")
-        parts.append(f"📊 Natijangiz: <b>{ref_count} / {target}</b>")
+        parts.append(f"🏆 <b>{contest.title}</b> 🌟")
+        parts.append(f"📊 Natijangiz: <b>{ref_count} / {target} ta do'st</b>")
         parts.append("")
         if remaining > 0:
             parts.append(
                 f"🎯 Yana <b>{remaining} ta</b> do'st taklif qiling → "
-                f"<b>{prize_name}</b> yutib olasiz!"
+                f"<b>{prize_name}</b> yopiq kanaliga kiring! 🎁"
             )
         else:
             parts.append(
-                f"✅ Tabriklaymiz! Shartni bajardingiz — "
-                f"<b>{prize_name}</b> havolasi yuborilmoqda..."
+                f"✅ <b>Tabriklaymiz! Shartni bajardingiz!</b> — "
+                f"<b>{prize_name}</b> 1 martalik havolasi yuborilmoqda... 👑"
             )
 
     full_text = "\n".join(parts)
@@ -74,7 +74,7 @@ async def notify_referrer(
     referral_link = create_deep_link(
         username=bot_username,
         payload=str(referrer_telegram_id),
-        encode=True,
+        encode=False,
         link_type="start",
     )
     encoded_link = urllib.parse.quote(referral_link, safe="")
@@ -86,11 +86,11 @@ async def notify_referrer(
 
     keyboard = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(
-            text="🔗 Havolangiz",
+            text="💎 Shaxsiy havolangiz",
             url=referral_link,
         )],
         [InlineKeyboardButton(
-            text="📤 Do'stlarga ulashish ↗",
+            text="🚀 Do'stlarga ulashish ↗️",
             url=f"https://t.me/share/url?url={encoded_link}&text={share_text}",
         )],
     ])

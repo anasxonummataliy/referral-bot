@@ -386,8 +386,9 @@ async def contest_set_prize_start(callback: CallbackQuery, state: FSMContext, db
         "🎁 <b>Prize Kanal qo'shish</b>\n\n"
         "Kanal ID sini yuboring:\n"
         "<code>-1001234567890</code>\n\n"
-        "⚠️ <b>Muhim:</b> Bot bu kanalda admin va "
-        "«Invite Links yaratish» huquqiga ega bo'lishi shart!\n\n"
+        "⚠️ <b>Muhim:</b> Bot bu kanalda admin bo'lishi va quyidagi huquqlarga ega bo'lishi shart:\n"
+        "• <b>Taklif havolalarini boshqarish (Invite links)</b> — 1 martalik link yaratish uchun\n"
+        "• <b>Foydalanuvchilarni chiqarish (Ban users)</b> — majburiy kanaldan chiqqanda yopiq kanaldan chiqarish uchun\n\n"
         "/cancel — bekor qilish"
     )
     await state.set_state(PrizeChannelStates.waiting_channel)

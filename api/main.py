@@ -10,7 +10,11 @@ from app.database.session import init_db
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     await init_db()
-    await bot.set_webhook(url=f"{settings.WEBHOOK_HOST}{settings.WEBHOOK_PATH}", drop_pending_updates=True)
+    await bot.set_webhook(
+        url=f"{settings.WEBHOOK_HOST}{settings.WEBHOOK_PATH}",
+        drop_pending_updates=True,
+        allowed_updates=["message", "callback_query", "chat_member", "my_chat_member"],
+    )
     print(f"✅ Webhook sozlandi: {settings.WEBHOOK_HOST}{settings.WEBHOOK_PATH}")
     yield
     print("⛔ Bot to‘xtamoqda...")

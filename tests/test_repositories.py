@@ -2,9 +2,9 @@
 
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
-from app.database.models import User, Admin
-from app.repositories.user_repo import UserRepository
+
 from app.repositories.admin_repo import AdminRepository
+from app.repositories.user_repo import UserRepository
 
 
 @pytest.mark.asyncio

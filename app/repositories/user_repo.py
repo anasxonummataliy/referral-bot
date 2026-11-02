@@ -47,6 +47,11 @@ class UserRepository(BaseRepository[User]):
             telegram_id=telegram_id, is_subscribed=is_subscribed
         )
 
+    async def update_prize_access(self, telegram_id: int, has_prize_access: bool):
+        return await self.update_by_telegram_id(
+            telegram_id=telegram_id, has_prize_access=has_prize_access
+        )
+
     async def get_with_referrer(self, telegram_id: int) -> User | None:
         stmt = (
             select(User)
