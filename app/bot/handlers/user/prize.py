@@ -65,6 +65,7 @@ async def send_prize_link(
     except Exception:
         pass
 
+    invite_url = None
     try:
         invite = await bot.create_chat_invite_link(
             chat_id=contest.prize_channel_id,
@@ -72,21 +73,27 @@ async def send_prize_link(
             creates_join_request=False,  # To'g'ridan kiradi
             name=f"User {user_id}",
         )
+        invite_url = invite.invite_link
     except Exception as e:
         logger.error(
             f"create_chat_invite_link XATO (user={user_id}, "
             f"channel={contest.prize_channel_id}): {e}"
         )
-        return False
 
     channel_title = contest.prize_channel_title or "Sovrin kanal"
 
-    keyboard = InlineKeyboardMarkup(inline_keyboard=[[
-        InlineKeyboardButton(
-            text=f"👑 {channel_title} — Kirish 🚀",
-            url=invite.invite_link,
-        )
-    ]])
+    if invite_url:
+        keyboard = InlineKeyboardMarkup(inline_keyboard=[[
+            InlineKeyboardButton(
+                text=f"👑 {channel_title} — Kirish 🚀",
+                url=invite_url,
+            )
+        ]])
+    else:
+        keyboard = InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(text="🎁 Havolani olish", callback_data="get_prize_link")],
+            [InlineKeyboardButton(text="✉️ Adminga yozish", callback_data="contact_admin")],
+        ])
 
     target = contest.required_referrals if contest else 1
     if ref_count is None and db:
@@ -106,19 +113,35 @@ async def send_prize_link(
     )
 
     if is_resubscribed:
-        prize_text = (
-            "✅ <b>Obuna tasdiqlandi!</b>\n\n"
-            f"<b>{channel_title}</b> kanaliga 1 martalik havolangiz:\n\n"
-            "⚠️ <i>Diqqat: Bu havola faqat 1 marta ishlaydi! Uni boshqaga bermang.</i>"
-            f"{stats_block}"
-        )
+        if invite_url:
+            prize_text = (
+                "✅ <b>Obuna tasdiqlandi!</b>\n\n"
+                f"<b>{channel_title}</b> kanaliga 1 martalik havolangiz:\n\n"
+                "⚠️ <i>Diqqat: Bu havola faqat 1 marta ishlaydi! Uni boshqaga bermang.</i>"
+                f"{stats_block}"
+            )
+        else:
+            prize_text = (
+                "✅ <b>Obuna tasdiqlandi!</b>\n\n"
+                f"Siz <b>{channel_title}</b> sovg'asini yutib olgansiz! 🎁\n\n"
+                "Havolani olish uchun quyidagi tugmani bosing:"
+                f"{stats_block}"
+            )
     else:
-        prize_text = (
-            "🎉 <b>Tabriklaymiz! Shart bajarildi.</b>\n\n"
-            f"<b>{channel_title}</b> kanaliga 1 martalik havolangiz:\n\n"
-            "⚠️ <i>Diqqat: Bu havola faqat 1 marta ishlaydi! Uni boshqaga bermang.</i>"
-            f"{stats_block}"
-        )
+        if invite_url:
+            prize_text = (
+                "🎉 <b>Tabriklaymiz! Siz barcha shartlarni bajardingiz.</b>\n\n"
+                f"<b>{channel_title}</b> kanaliga 1 martalik havolangiz:\n\n"
+                "⚠️ <i>Diqqat: Bu havola faqat 1 marta ishlaydi! Uni boshqaga bermang.</i>"
+                f"{stats_block}"
+            )
+        else:
+            prize_text = (
+                "🎉 <b>Tabriklaymiz! Siz barcha shartlarni bajardingiz!</b>\n\n"
+                f"Siz <b>{ref_count} ta</b> do'stingizni taklif qilib, <b>{channel_title}</b> sovg'asiga ega bo'ldingiz! 🎁\n\n"
+                "Havolani olish uchun quyidagi tugmani bosing:"
+                f"{stats_block}"
+            )
 
     try:
         await bot.send_message(
@@ -127,7 +150,7 @@ async def send_prize_link(
             reply_markup=keyboard,
             parse_mode="HTML",
         )
-        logger.info(f"✅ Prize link yuborildi: user={user_id}, contest={contest.id}")
+        logger.info(f"✅ Prize xabari yuborildi: user={user_id}, contest={contest.id}")
         return True
     except Exception as e:
         logger.error(f"send_message XATO (user={user_id}): {e}")

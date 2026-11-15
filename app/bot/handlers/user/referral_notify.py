@@ -68,6 +68,8 @@ async def notify_referrer(
     lines.append(f"\n📊 Natijangiz: <b>{ref_count} / {target}</b> ta do'st")
     if remaining > 0:
         lines.append(f"Yana <b>{remaining} ta</b> do'st taklif qilishingiz kerak.")
+    else:
+        lines.append("\n🎉 <b>Tabriklaymiz! Siz barcha shartlarni bajardingiz!</b>")
 
     text = "\n".join(lines)
 
@@ -83,12 +85,16 @@ async def notify_referrer(
     )
     share_url = build_share_url(referral_link, contest)
 
-    keyboard = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(
+    buttons = []
+    if ref_count >= target:
+        buttons.append([InlineKeyboardButton(text="🎁 Sovg'ani olish", callback_data="get_prize_link")])
+    buttons.append([
+        InlineKeyboardButton(
             text="🚀 Do'stlarga ulashish",
             url=share_url,
-        )],
+        )
     ])
+    keyboard = InlineKeyboardMarkup(inline_keyboard=buttons)
 
     try:
         await bot.send_message(
