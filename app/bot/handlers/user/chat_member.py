@@ -84,12 +84,6 @@ async def on_chat_member_updated(
             buttons = []
             if channel_link:
                 buttons.append([InlineKeyboardButton(text=f"📢 {channel_title}", url=channel_link)])
-            buttons.append([
-                InlineKeyboardButton(
-                    text="✅ Qayta a'zo bo'ldim — Tekshirish",
-                    callback_data="check_subscription",
-                )
-            ])
             keyboard = InlineKeyboardMarkup(inline_keyboard=buttons)
 
             if was_in_prize:
@@ -97,13 +91,13 @@ async def on_chat_member_updated(
                     f"⚠️ <b>Diqqat!</b>\n\n"
                     f"Siz <b>{channel_title}</b> kanalidan chiqib ketganingiz sababli "
                     f"<b>yopiq kanaldan chiqarildingiz!</b>\n\n"
-                    f"Qayta kirish uchun barcha kanallarga a'zo bo'ling va tekshirish tugmasini bosing:"
+                    f"Qayta kirish uchun kanalga qayta a'zo bo'ling. A'zoligingiz avtomatik tekshiriladi:"
                 )
             else:
                 msg_text = (
                     f"⚠️ <b>Diqqat!</b>\n\n"
                     f"Siz majburiy kanal (<b>{channel_title}</b>)dan chiqib ketdingiz.\n\n"
-                    f"Botdan foydalanish uchun kanalga qayta a'zo bo'ling:"
+                    f"Botdan foydalanish uchun kanalga qayta a'zo bo'ling. A'zoligingiz avtomatik tekshiriladi:"
                 )
 
             await bot.send_message(
@@ -128,6 +122,7 @@ async def on_chat_member_updated(
             ref_service = ReferralService(db)
             await ref_service.confirm_referral(user.id, bot)
 
+            prize_sent = False
             if contest and contest.prize_channel_id:
                 fresh_user = await user_repo.get_by_telegram_id(user.id)
                 if fresh_user and fresh_user.referral_count >= contest.required_referrals:
@@ -142,3 +137,42 @@ async def on_chat_member_updated(
                         )
                         if sent:
                             await user_repo.update_prize_access(user.id, True)
+                            prize_sent = True
+
+            # Agar prize link yuborilmagan bo'lsa — foydalanuvchiga avtomatik asosiy menyuni chiqaramiz
+            if not prize_sent and contest:
+                try:
+                    fresh_user = await user_repo.get_by_telegram_id(user.id)
+                    ref_count = fresh_user.referral_count if fresh_user else 0
+                    target = contest.required_referrals if contest else 5
+                    from app.bot.handlers.user.utils import progress_bar
+                    from app.core.config import settings
+                    from app.bot.handlers.user.share import build_share_url
+                    from app.bot.handlers.user.keyboards import main_menu_keyboard
+
+                    bar = progress_bar(ref_count, target)
+                    bot_info = await bot.get_me()
+                    bot_username = settings.BOT_USERNAME or bot_info.username
+
+                    referral_link = await ref_service.get_user_referral_link(
+                        telegram_id=user.id, bot_username=bot_username
+                    )
+                    share_url = build_share_url(referral_link, contest)
+                    keyboard = main_menu_keyboard(share_url=share_url)
+
+                    text = (
+                        "✅ <b>Obuna avtomatik tasdiqlandi!</b>\n\n"
+                        f"🎯 <b>Konkurs sharti:</b> {target} ta do'st taklif qilish\n\n"
+                        f"📊 <b>Natijangiz:</b> {ref_count} / {target} ta do'st\n"
+                        f"{bar}\n\n"
+                        f"🔗 <b>Taklif havolangiz:</b>\n"
+                        f"<code>{referral_link}</code>"
+                    )
+                    await bot.send_message(
+                        chat_id=user.id,
+                        text=text,
+                        reply_markup=keyboard,
+                        disable_web_page_preview=True,
+                    )
+                except Exception as e:
+                    logger.warning(f"Kanalga qaytgan userga ({user.id}) avtomatik menyu yuborishda xato: {e}")

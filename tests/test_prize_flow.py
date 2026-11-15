@@ -248,3 +248,53 @@ class TestChatMemberUpdatedFlow:
         args, kwargs = bot.send_message.call_args
         assert kwargs["chat_id"] == 777888
         assert "1 martalik havolangiz" in kwargs["text"]
+
+    async def test_user_rejoins_mandatory_channel_gets_auto_main_menu(
+        self, db_session: AsyncSession
+    ):
+        """User below prize threshold rejoins channel -> automatically gets main menu"""
+        user = User(
+            telegram_id=333444,
+            full_name="Auto User",
+            referral_count=1,
+            is_subscribed=False,
+            has_prize_access=False,
+        )
+        channel = Channel(
+            channel_id=-100444555,
+            title="Majburiy Kanal 1",
+            is_active=True,
+            is_required=True,
+        )
+        contest = Contest(
+            title="Konkurs",
+            required_referrals=5,
+            is_active=True,
+        )
+        db_session.add_all([user, channel, contest])
+        await db_session.commit()
+
+        bot = MagicMock()
+        mock_member = MagicMock()
+        mock_member.status = "member"
+        bot.get_chat_member = AsyncMock(return_value=mock_member)
+        bot.get_me = AsyncMock(return_value=MagicMock(username="oral_bot"))
+        bot.send_message = AsyncMock(return_value=MagicMock())
+
+        event = MagicMock()
+        event.chat.id = -100444555
+        event.new_chat_member.user.id = 333444
+        event.new_chat_member.user.is_bot = False
+        event.old_chat_member.status = "left"
+        event.new_chat_member.status = "member"
+
+        await on_chat_member_updated(event, bot, db_session)
+
+        await db_session.refresh(user)
+        assert user.is_subscribed is True
+        bot.send_message.assert_awaited_once()
+        args, kwargs = bot.send_message.call_args
+        assert kwargs["chat_id"] == 333444
+        assert "Obuna avtomatik tasdiqlandi" in kwargs["text"]
+        assert "Taklif havolangiz" in kwargs["text"]
+
