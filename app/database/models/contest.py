@@ -26,6 +26,7 @@ class Contest(Base):
     # Prize kanal (yashirin, bot admin)
     prize_channel_id: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
     prize_channel_title: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    prize_channel_invite_link: Mapped[str | None] = mapped_column(String(255), nullable=True)
 
     # Konkurs holati
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)

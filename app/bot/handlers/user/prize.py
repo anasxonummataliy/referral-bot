@@ -80,20 +80,24 @@ async def send_prize_link(
             f"channel={contest.prize_channel_id}): {e}"
         )
 
+    # 1 martalik link yaratish o'xshamasa (bot admin qilinmagan bo'lsa), zaxira havolasini olamiz
+    if not invite_url:
+        invite_url = getattr(contest, "prize_channel_invite_link", None)
+        if not invite_url and contest.prize_channel_id == -1003750541188:
+            invite_url = "https://t.me/+FdQg1j_I_pBjZDg0"
+
     channel_title = contest.prize_channel_title or "Sovrin kanal"
 
-    if invite_url:
-        keyboard = InlineKeyboardMarkup(inline_keyboard=[[
-            InlineKeyboardButton(
-                text=f"👑 {channel_title} — Kirish 🚀",
-                url=invite_url,
-            )
-        ]])
-    else:
-        keyboard = InlineKeyboardMarkup(inline_keyboard=[
-            [InlineKeyboardButton(text="🎁 Havolani olish", callback_data="get_prize_link")],
-            [InlineKeyboardButton(text="✉️ Adminga yozish", callback_data="contact_admin")],
-        ])
+    if not invite_url:
+        logger.error(f"Sovg'a havolasi topilmadi (user={user_id}, channel={contest.prize_channel_id})")
+        return False
+
+    keyboard = InlineKeyboardMarkup(inline_keyboard=[[
+        InlineKeyboardButton(
+            text=f"👑 {channel_title} — Kirish 🚀",
+            url=invite_url,
+        )
+    ]])
 
     target = contest.required_referrals if contest else 1
     if ref_count is None and db:
@@ -113,35 +117,19 @@ async def send_prize_link(
     )
 
     if is_resubscribed:
-        if invite_url:
-            prize_text = (
-                "✅ <b>Obuna tasdiqlandi!</b>\n\n"
-                f"<b>{channel_title}</b> kanaliga 1 martalik havolangiz:\n\n"
-                "⚠️ <i>Diqqat: Bu havola faqat 1 marta ishlaydi! Uni boshqaga bermang.</i>"
-                f"{stats_block}"
-            )
-        else:
-            prize_text = (
-                "✅ <b>Obuna tasdiqlandi!</b>\n\n"
-                f"Siz <b>{channel_title}</b> sovg'asini yutib olgansiz! 🎁\n\n"
-                "Havolani olish uchun quyidagi tugmani bosing:"
-                f"{stats_block}"
-            )
+        prize_text = (
+            "✅ <b>Obuna tasdiqlandi!</b>\n\n"
+            f"<b>{channel_title}</b> kanaliga 1 martalik havolangiz:\n\n"
+            "⚠️ <i>Diqqat: Bu havola faqat 1 marta ishlaydi! Uni boshqaga bermang.</i>"
+            f"{stats_block}"
+        )
     else:
-        if invite_url:
-            prize_text = (
-                "🎉 <b>Tabriklaymiz! Siz barcha shartlarni bajardingiz.</b>\n\n"
-                f"<b>{channel_title}</b> kanaliga 1 martalik havolangiz:\n\n"
-                "⚠️ <i>Diqqat: Bu havola faqat 1 marta ishlaydi! Uni boshqaga bermang.</i>"
-                f"{stats_block}"
-            )
-        else:
-            prize_text = (
-                "🎉 <b>Tabriklaymiz! Siz barcha shartlarni bajardingiz!</b>\n\n"
-                f"Siz <b>{ref_count} ta</b> do'stingizni taklif qilib, <b>{channel_title}</b> sovg'asiga ega bo'ldingiz! 🎁\n\n"
-                "Havolani olish uchun quyidagi tugmani bosing:"
-                f"{stats_block}"
-            )
+        prize_text = (
+            "🎉 <b>Tabriklaymiz! Siz barcha shartlarni bajardingiz!</b>\n\n"
+            f"<b>{channel_title}</b> kanaliga 1 martalik havolangiz:\n\n"
+            "⚠️ <i>Diqqat: Bu havola faqat 1 marta ishlaydi! Uni boshqaga bermang.</i>"
+            f"{stats_block}"
+        )
 
     try:
         await bot.send_message(

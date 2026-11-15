@@ -52,6 +52,10 @@ async def init_db():
             await conn.execute(text("ALTER TABLE users ADD COLUMN has_prize_access BOOLEAN DEFAULT 0"))
         except Exception:
             pass
+        try:
+            await conn.execute(text("ALTER TABLE contests ADD COLUMN prize_channel_invite_link VARCHAR(255)"))
+        except Exception:
+            pass
 
 
 async def drop_db():
