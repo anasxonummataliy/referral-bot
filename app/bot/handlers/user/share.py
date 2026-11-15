@@ -36,14 +36,8 @@ def _strip_html(text: str) -> str:
     return re.sub(r"<[^>]+>", "", text).strip()
 
 
-def _build_share_text(contest, referral_link: str) -> str:
-    """
-    Do'stga yuboriladigan matn:
-    {referral_link}
-
-    {message}
-    👆 Qatnashish uchun quyidagi tugmani bosing.
-    """
+def _build_share_caption(contest) -> str:
+    """Do'stga yuboriladigan xabar matni (havolasiz)."""
     if contest and contest.referral_message:
         msg = _strip_html(contest.referral_message).strip()
     elif contest and contest.welcome_message:
@@ -53,11 +47,55 @@ def _build_share_text(contest, referral_link: str) -> str:
     else:
         msg = "Konkursda qatnashing!"
 
-    return f"{referral_link}\n\n{msg}\n👆 Qatnashish uchun quyidagi tugmani bosing."
+    return f"{msg}\n👆 Qatnashish uchun quyidagi tugmani bosing."
 
 
-def _build_user_keyboard(referral_link: str, share_text: str) -> InlineKeyboardMarkup:
-    share_url = "https://t.me/share/url?" + urllib.parse.urlencode({"text": share_text})
+def _build_share_text(contest, referral_link: str) -> str:
+    """
+    Do'stga yuboriladigan matn:
+    {referral_link}
+
+    {message}
+    👆 Qatnashish uchun quyidagi tugmani bosing.
+    """
+    caption = _build_share_caption(contest)
+    return f"{referral_link}\n\n{caption}"
+
+
+def build_share_url(
+    referral_link: str,
+    contest=None,
+    text: str | None = None,
+) -> str:
+    """
+    Telegram ichida ulashish uchun tg://msg_url deep linkini hosil qiladi.
+    https://t.me/share/url o'rniga tg://msg_url ishlatiladi, chunki:
+    - Mobil telefonlarda (iOS/Android) Safari yoki Chrome brauzeriga chiqib ketmasdan,
+      to'g'ridan-to'g'ri Telegram ichidagi chat tanlash oynasini ochadi.
+    - Kompyuterda ham Telegram Desktop ilovasida to'g'ridan-to'g'ri ochiladi.
+    """
+    if text is None:
+        text = _build_share_caption(contest)
+    elif referral_link and text.startswith(referral_link):
+        # Matn ichida havola allaqachon bo'lsa, url parametri bilan dublikat bo'lmasligi uchun tozalaymiz
+        text = text[len(referral_link):].lstrip("\r\n")
+
+    params = {
+        "url": referral_link,
+        "text": text,
+    }
+    return "tg://msg_url?" + urllib.parse.urlencode(params, quote_via=urllib.parse.quote)
+
+
+def _build_user_keyboard(
+    referral_link: str,
+    contest_or_text=None,
+) -> InlineKeyboardMarkup:
+    if isinstance(contest_or_text, str):
+        share_url = build_share_url(referral_link, text=contest_or_text)
+    else:
+        share_url = build_share_url(referral_link, contest=contest_or_text)
+
     return InlineKeyboardMarkup(
         inline_keyboard=[
             [InlineKeyboardButton(text="🚀 Do'stlarga ulashish", url=share_url)],
@@ -83,8 +121,7 @@ async def share_link_cb(callback: CallbackQuery, db: AsyncSession):
     contest = await contest_repo.get_active_contest()
     target = contest.required_referrals if contest else 5
 
-    share_text = _build_share_text(contest, referral_link)
-    keyboard = _build_user_keyboard(referral_link, share_text)
+    keyboard = _build_user_keyboard(referral_link, contest)
 
     text = (
         f"🔗 <b>Taklif havolangiz:</b>\n"
@@ -112,8 +149,7 @@ async def cmd_referral(message: Message, db: AsyncSession):
     contest = await contest_repo.get_active_contest()
     target = contest.required_referrals if contest else 5
 
-    share_text = _build_share_text(contest, referral_link)
-    keyboard = _build_user_keyboard(referral_link, share_text)
+    keyboard = _build_user_keyboard(referral_link, contest)
 
     await message.answer(
         f"🔗 <b>Taklif havolangiz:</b>\n"

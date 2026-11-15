@@ -40,7 +40,7 @@ async def notify_referrer(
     remaining = max(0, target - ref_count)
     prize_name = (contest.prize_channel_title or "Sovrin kanal") if contest else "Sovrin kanal"
 
-    from app.bot.handlers.user.share import _build_share_text
+    from app.bot.handlers.user.share import build_share_url
 
     text = (
         f"👤 <b>{new_user_name}</b> taklif havolangiz orqali qo'shildi! (+1)\n\n"
@@ -59,8 +59,7 @@ async def notify_referrer(
         encode=False,
         link_type="start",
     )
-    share_msg = _build_share_text(contest, referral_link)
-    share_url = "https://t.me/share/url?" + urllib.parse.urlencode({"text": share_msg})
+    share_url = build_share_url(referral_link, contest)
 
     keyboard = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(

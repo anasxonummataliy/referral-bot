@@ -128,3 +128,41 @@ def test_build_share_text_format():
     assert text.startswith("https://t.me/hasanboevs_bot?start=7381087311\n\n")
     assert "Havola:" not in text
     assert "👇" not in text
+
+
+def test_build_share_url_native_tg_scheme():
+    """Verify that build_share_url uses tg://msg_url instead of https://t.me/share/url"""
+    import urllib.parse
+    from app.bot.handlers.user.share import build_share_url, _build_user_keyboard
+    from app.database.models import Contest
+
+    contest = Contest(
+        title="Writing 2026",
+        welcome_message="Writing 2026",
+        referral_message=None,
+        required_referrals=1,
+    )
+    ref_link = "https://t.me/hasanboevs_bot?start=7381087311"
+
+    url = build_share_url(ref_link, contest)
+
+    # Must use tg://msg_url so mobile devices don't open Safari/Chrome
+    assert url.startswith("tg://msg_url?")
+    assert "https://t.me/share/url" not in url
+
+    # Must contain encoded parameters
+    parsed = urllib.parse.urlparse(url)
+    params = urllib.parse.parse_qs(parsed.query)
+    assert params["url"][0] == ref_link
+    assert "Writing 2026" in params["text"][0]
+    assert "👆 Qatnashish uchun quyidagi tugmani bosing." in params["text"][0]
+
+    # Spaces must be encoded as %20, not +
+    assert "+" not in url
+    assert "%20" in url
+
+    # Keyboard button must carry this url
+    kb = _build_user_keyboard(ref_link, contest)
+    share_btn = kb.inline_keyboard[0][0]
+    assert share_btn.url == url
+    assert share_btn.url.startswith("tg://msg_url?")

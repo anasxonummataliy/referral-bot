@@ -142,8 +142,7 @@ async def show_main_menu(
     """
     Foydalanuvchiga rasm + caption va kanallar yoki asosiy menyuni chiqarish.
     """
-    import urllib.parse
-    from app.bot.handlers.user.share import _build_share_text
+    from app.bot.handlers.user.share import build_share_url
 
     user_id = message.from_user.id
     sub_service = SubscriptionService(db)
@@ -162,8 +161,7 @@ async def show_main_menu(
         telegram_id=user_id, bot_username=bot_username
     )
 
-    share_text = _build_share_text(contest, referral_link)
-    share_url = "https://t.me/share/url?" + urllib.parse.urlencode({"text": share_text})
+    share_url = build_share_url(referral_link, contest)
 
     if not is_subscribed:
         channels = await sub_service.get_required_channels()
@@ -349,10 +347,8 @@ async def check_subscription_cb(callback: CallbackQuery, db: AsyncSession):
         referral_link = await ref_service.get_user_referral_link(
             telegram_id=user_id, bot_username=bot_username
         )
-        from app.bot.handlers.user.share import _build_share_text
-        import urllib.parse
-        share_text = _build_share_text(contest, referral_link)
-        share_url = "https://t.me/share/url?" + urllib.parse.urlencode({"text": share_text})
+        from app.bot.handlers.user.share import build_share_url
+        share_url = build_share_url(referral_link, contest)
 
         # Agar foydalanuvchi yetarli referral to'plagan bo'lsa va prize kanal bo'lsa:
         if contest.prize_channel_id and ref_count >= target:
