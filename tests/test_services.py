@@ -166,3 +166,37 @@ def test_build_share_url_native_tg_scheme():
     share_btn = kb.inline_keyboard[0][0]
     assert share_btn.url == url
     assert share_btn.url.startswith("tg://msg_url?")
+
+
+@pytest.mark.asyncio
+async def test_notify_referrer_rich_user_details(db_session: AsyncSession):
+    """Verify that notify_referrer sends full user details: name, username, ID, and profile link"""
+    from unittest.mock import AsyncMock, MagicMock
+    from app.bot.handlers.user.referral_notify import notify_referrer
+    from app.database.models import User, Contest
+
+    referrer = User(telegram_id=111111111, full_name="Referrer", referral_count=2)
+    new_user = User(telegram_id=987654321, full_name="John Doe", username="johndoe")
+    contest = Contest(title="Test Contest", required_referrals=5)
+    db_session.add_all([referrer, new_user, contest])
+    await db_session.commit()
+
+    mock_bot = MagicMock()
+    mock_bot.send_message = AsyncMock()
+    mock_bot.get_me = AsyncMock(return_value=MagicMock(username="test_bot"))
+
+    await notify_referrer(
+        bot=mock_bot,
+        referrer_telegram_id=111111111,
+        new_user_name=new_user.full_name,
+        db=db_session,
+        new_user=new_user,
+    )
+
+    assert mock_bot.send_message.called
+    sent_text = mock_bot.send_message.call_args.kwargs["text"]
+    assert "John Doe" in sent_text
+    assert "@johndoe" in sent_text
+    assert "<code>987654321</code>" in sent_text
+    assert 'href="tg://user?id=987654321"' in sent_text
+    assert "Natijangiz: <b>2 / 5</b>" in sent_text

@@ -117,7 +117,7 @@ class ReferralService:
         # 2. Referrerning referral_count +1 (DB da yangilanadi)
         await self.user_repo.increment_referral_count(referrer.telegram_id)
 
-        # 3. Referrerga bildirishnoma
+        # 3. Referrerga bildirishnoma (to'liq ma'lumotlar bilan)
         try:
             from app.bot.handlers.user.referral_notify import notify_referrer
             await notify_referrer(
@@ -125,6 +125,9 @@ class ReferralService:
                 referrer_telegram_id=referrer.telegram_id,
                 new_user_name=referred_user.full_name or "Do'st",
                 db=self.db,
+                new_user_id=referred_user.telegram_id,
+                new_user_username=referred_user.username,
+                new_user=referred_user,
             )
         except Exception as e:
             logger.error(f"notify_referrer xatolik: {e}")

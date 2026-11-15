@@ -1,6 +1,7 @@
 """
 Referrerga bildirishnoma — yangi do'st qo'shilganda.
 """
+import html
 import logging
 import urllib.parse
 
@@ -21,11 +22,12 @@ async def notify_referrer(
     referrer_telegram_id: int,
     new_user_name: str,
     db: AsyncSession,
+    new_user_id: int | None = None,
+    new_user_username: str | None = None,
+    new_user=None,
 ) -> None:
     """
-    Referrerga yangi do'st qo'shilgani haqida xabar.
-    Matn: admin referral_message (agar bo'lsa) + avtomatik natija.
-    Keyboard: referrerning o'z havolasini ulashish tugmasi.
+    Referrerga yangi do'st qo'shilgani haqida to'liq ma'lumotlar bilan xabar.
     """
     contest_repo = ContestRepository(db)
     contest = await contest_repo.get_active_contest()
@@ -38,16 +40,37 @@ async def notify_referrer(
     ref_count = referrer.referral_count
     target = contest.required_referrals if contest else 5
     remaining = max(0, target - ref_count)
-    prize_name = (contest.prize_channel_title or "Sovrin kanal") if contest else "Sovrin kanal"
 
     from app.bot.handlers.user.share import build_share_url
 
-    text = (
-        f"👤 <b>{new_user_name}</b> taklif havolangiz orqali qo'shildi! (+1)\n\n"
-        f"📊 Natijangiz: <b>{ref_count} / {target}</b> ta do'st"
-    )
+    # Yangi kelgan foydalanuvchi ma'lumotlarini to'liq shakllantirish
+    if new_user:
+        u_id = getattr(new_user, "telegram_id", None) or new_user_id
+        u_name = getattr(new_user, "full_name", None) or new_user_name
+        u_uname = getattr(new_user, "username", None) or new_user_username
+    else:
+        u_id = new_user_id
+        u_name = new_user_name
+        u_uname = new_user_username
+
+    clean_name = html.escape(u_name or "Do'st")
+    uname_str = f"@{html.escape(u_uname)}" if u_uname else "<i>Mavjud emas</i>"
+
+    lines = [
+        "👤 <b>Yangi do'st taklif havolangiz orqali qo'shildi! (+1)</b>\n",
+        "📋 <b>Foydalanuvchi ma'lumotlari:</b>",
+        f"• <b>Ism:</b> {clean_name}",
+        f"• <b>Username:</b> {uname_str}",
+    ]
+    if u_id:
+        lines.append(f"• <b>ID:</b> <code>{u_id}</code>")
+        lines.append(f"• <b>Profil:</b> <a href=\"tg://user?id={u_id}\">Profilga o'tish ↗️</a>")
+
+    lines.append(f"\n📊 Natijangiz: <b>{ref_count} / {target}</b> ta do'st")
     if remaining > 0:
-        text += f"\nYana <b>{remaining} ta</b> do'st taklif qilishingiz kerak."
+        lines.append(f"Yana <b>{remaining} ta</b> do'st taklif qilishingiz kerak.")
+
+    text = "\n".join(lines)
 
     # ── Keyboard — referrerning deeplinki bilan ulashish ─────────────────────
     bot_info = await bot.get_me()
