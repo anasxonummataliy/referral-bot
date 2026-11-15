@@ -24,3 +24,7 @@ tests/
 pytest.ini
 .github/
 LICENSE
+data/
+*.db
+*.db-wal
+*.db-shm

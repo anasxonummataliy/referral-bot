@@ -15,6 +15,10 @@ class Referral(Base):
         ForeignKey("users.id", ondelete="CASCADE"), nullable=False, unique=True
     )
 
+    contest_id: Mapped[int | None] = mapped_column(
+        ForeignKey("contests.id", ondelete="SET NULL"), nullable=True, index=True
+    )
+
     bonus_given: Mapped[bool] = mapped_column(Boolean, default=False)
 
     joined_at: Mapped[datetime] = mapped_column(

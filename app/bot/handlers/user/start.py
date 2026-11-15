@@ -286,8 +286,8 @@ async def cmd_start(message: Message, bot: Bot, db: AsyncSession):
         return
 
     # ── REFERRAL QAYD ─────────────────────────────────────────────────────────
-    # Faqat referrer mavjud + o'ziga o'zi emas + (yangi user yoki hali referrer belgilanmagan)
-    if referrer_id and referrer_id != user_id and (is_really_new or user.referrer_id is None):
+    # Faqat referrer mavjud + o'ziga o'zi emas + haqiqatdan ham botga birinchi marta kirgan yangi user
+    if referrer_id and referrer_id != user_id and is_really_new:
         ref_service = ReferralService(db)
         registered = await ref_service.process_new_referral(
             new_user_telegram_id=user_id,
@@ -297,7 +297,7 @@ async def cmd_start(message: Message, bot: Bot, db: AsyncSession):
         if registered:
             # Agar majburiy kanallar bo'lmasa yoki user allaqachon a'zo bo'lsa — darhol tasdiqlash
             sub_service = SubscriptionService(db)
-            if await sub_service.check_full_subscription(bot=bot, telegram_id=user_id):
+            if await sub_service.check_full_subscription(bot=bot, telegram_id=user_id, bypass_cache=True):
                 await ref_service.confirm_referral(user_id, bot)
 
     # ── KONKURS ───────────────────────────────────────────────────────────────
@@ -325,8 +325,9 @@ async def check_subscription_cb(callback: CallbackQuery, db: AsyncSession):
     user_id = callback.from_user.id
     sub_service = SubscriptionService(db)
 
+    # Foydalanuvchi "A'zo bo'ldim" tugmasini bosganda keshni chetlab o'tib jonli tekshiramiz
     unsubscribed = await sub_service.get_unsubscribed_channels(
-        bot=callback.bot, telegram_id=user_id
+        bot=callback.bot, telegram_id=user_id, bypass_cache=True
     )
 
     if not unsubscribed:
@@ -405,13 +406,26 @@ async def check_subscription_cb(callback: CallbackQuery, db: AsyncSession):
                 await kick_user_from_prize_channel(callback.bot, contest.prize_channel_id, user_id)
                 await user_repo.update_prize_access(user_id, False)
 
-        missing_titles = "\n".join([f"• {c.title}" for c in unsubscribed])
+        # Alert matni Telegram limiti (200 belgi) dan oshmasligi shart:
         await safe_answer(
             callback,
-            f"❌ Siz hali quyidagi kanal(lar)ga a'zo bo'lmadingiz:\n\n{missing_titles}\n\n"
-            "Iltimos, har bir kanalga a'zo bo'lib, qayta urinib ko'ring.",
+            "❌ Hali a'zo bo'lmagan kanallaringiz bor!",
             show_alert=True,
         )
+
+        missing_keyboard = _subscription_keyboard(unsubscribed)
+        missing_text = (
+            "⚠️ <b>Botdan foydalanish uchun quyidagi kanallarga a'zo bo'ling:</b>\n\n"
+            + "\n".join([f"• <b>{html.escape(c.title)}</b>" for c in unsubscribed])
+            + "\n\nA'zo bo'lgach, «⚡️ A'zolikni tekshirish» tugmasini bosing:"
+        )
+        try:
+            await callback.message.edit_text(missing_text, reply_markup=missing_keyboard)
+        except Exception:
+            try:
+                await callback.message.edit_caption(caption=missing_text, reply_markup=missing_keyboard)
+            except Exception:
+                await callback.message.answer(missing_text, reply_markup=missing_keyboard)
 
 
 # ── Orqaga ─────────────────────────────────────────────────────────────────────

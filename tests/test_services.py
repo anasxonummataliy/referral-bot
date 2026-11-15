@@ -103,6 +103,32 @@ class TestReferralService:
 
         assert result is False
 
+    async def test_claim_bonus_atomic_prevents_double_counting(self, db_session: AsyncSession):
+        """Test atomic claim_bonus ensures bonus is only given once even with concurrent calls"""
+        from app.repositories.referral_repo import ReferralRepository
+        user1 = User(telegram_id=10101, full_name="U1")
+        user2 = User(telegram_id=10202, full_name="U2")
+        db_session.add_all([user1, user2])
+        await db_session.commit()
+
+        repo = ReferralRepository(db_session)
+        ref = await repo.create_referral(referrer_id=user1.id, referred_id=user2.id)
+
+        first_claim = await repo.claim_bonus(ref.id)
+        assert first_claim is True
+
+        # Second concurrent attempt must return False
+        second_claim = await repo.claim_bonus(ref.id)
+        assert second_claim is False
+
+        # Revoke bonus
+        revoked = await repo.revoke_bonus(ref.id)
+        assert revoked is True
+
+        # Second revoke attempt returns False
+        revoked_again = await repo.revoke_bonus(ref.id)
+        assert revoked_again is False
+
 
 def test_build_share_text_format():
     """Verify that referral link is at top, separated by newlines, with 👆 and no trailing link"""
@@ -205,7 +231,7 @@ async def test_notify_referrer_rich_user_details(db_session: AsyncSession):
 
 @pytest.mark.asyncio
 async def test_check_full_subscription_blocks_when_inaccessible(db_session: AsyncSession):
-    """Verify that when bot cannot access channel (e.g. not admin/chat not found), it treats user as not subscribed"""
+    """Verify channel config errors don't penalize user (Point 7), while missing user returns False"""
     from unittest.mock import AsyncMock, MagicMock
     from aiogram.exceptions import TelegramBadRequest
     from app.services.subscription_service import SubscriptionService
@@ -217,14 +243,18 @@ async def test_check_full_subscription_blocks_when_inaccessible(db_session: Asyn
 
     service = SubscriptionService(db_session)
     mock_bot = MagicMock()
+    # Bot sozlamasi xatosi bo'lsa (masalan chat not found) — foydalanuvchini jazolamaydi
     mock_bot.get_chat_member = AsyncMock(
         side_effect=TelegramBadRequest(method=MagicMock(), message="Bad Request: chat not found")
     )
 
-    is_sub = await service.check_full_subscription(bot=mock_bot, telegram_id=8122865725)
-    assert is_sub is False
+    is_sub = await service.check_full_subscription(bot=mock_bot, telegram_id=8122865725, bypass_cache=True)
+    assert is_sub is True
 
-    unsub = await service.get_unsubscribed_channels(bot=mock_bot, telegram_id=8122865725)
-    assert len(unsub) == 1
-    assert unsub[0].title == "Test Channel"
+    # Lekin user kanalda yo'q bo'lsa (PARTICIPANT_ID_INVALID yoki user not found), obuna False bo'ladi
+    mock_bot.get_chat_member = AsyncMock(
+        side_effect=TelegramBadRequest(method=MagicMock(), message="Bad Request: user not found")
+    )
+    is_sub_user_missing = await service.check_full_subscription(bot=mock_bot, telegram_id=8122865725, bypass_cache=True)
+    assert is_sub_user_missing is False
 

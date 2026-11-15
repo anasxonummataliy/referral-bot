@@ -71,3 +71,14 @@ class TestSettings:
         )
 
         assert settings.WEBHOOK_PATH == "/bot/webhook"
+
+    def test_admin_flexible_parsing(self):
+        """Test ADMIN parsing handles comma-separated strings, single int, or JSON string"""
+        s1 = Settings(BOT_TOKEN="t", ADMIN="123, 456")
+        assert s1.ADMIN == [123, 456]
+
+        s2 = Settings(BOT_TOKEN="t", ADMIN=789)
+        assert s2.ADMIN == [789]
+
+        s3 = Settings(BOT_TOKEN="t", ADMIN="[111, 222]")
+        assert s3.ADMIN == [111, 222]

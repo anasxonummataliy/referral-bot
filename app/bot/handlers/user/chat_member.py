@@ -4,6 +4,7 @@ Majburiy kanallardagi a'zolik o'zgarishlarini real-time kuzatadi:
 1. User majburiy kanallardan biridan chiqib ketsa -> yopiq kanaldan chiqariladi
 2. User barcha majburiy kanallarga qayta a'zo bo'lsa -> yopiq kanalga yangi 1 martalik link beriladi
 """
+import html
 import logging
 
 from aiogram import Router, Bot
@@ -62,6 +63,22 @@ async def on_chat_member_updated(
         if db_user:
             await user_repo.update_subscription_status(user.id, False)
 
+            # Agar bu foydalanuvchi orqali referrer bonus olgan bo'lsa,
+            # kanalni tark etganda referrerning balli kamaytiriladi (revoking bonus):
+            from app.repositories.referral_repo import ReferralRepository
+            referral_repo = ReferralRepository(db)
+            ref = await referral_repo.get_by_referred_id(db_user.id)
+            if ref and ref.bonus_given:
+                revoked = await referral_repo.revoke_bonus(ref.id)
+                if revoked:
+                    referrer = await user_repo.get(ref.referrer_id)
+                    if referrer and referrer.referral_count > 0:
+                        await user_repo.decrement_referral_count(referrer.telegram_id)
+                        logger.info(
+                            f"📉 Referral balli bekor qilindi (-1): referred={db_user.telegram_id} "
+                            f"kanaldan chiqdi → referrer={referrer.telegram_id}"
+                        )
+
         was_in_prize = False
         if contest and contest.prize_channel_id:
             # Agar userda prize huquqi bo'lsa yoki yetarli referali bo'lsa
@@ -77,27 +94,28 @@ async def on_chat_member_updated(
 
         # Foydalanuvchiga bot orqali ogohlantirish yuboramiz
         try:
-            channel_title = channel.title or "majburiy kanal"
+            raw_title = channel.title or "majburiy kanal"
+            safe_title = html.escape(raw_title)
             channel_link = channel.invite_link or (
                 f"https://t.me/{channel.username.lstrip('@')}" if channel.username else None
             )
             buttons = []
             if channel_link:
-                buttons.append([InlineKeyboardButton(text=f"📢 {channel_title} ↗️", url=channel_link)])
+                buttons.append([InlineKeyboardButton(text=f"📢 {raw_title} ↗️", url=channel_link)])
             buttons.append([InlineKeyboardButton(text="✅ Qayta a'zo bo'ldim", callback_data="check_subscription")])
             keyboard = InlineKeyboardMarkup(inline_keyboard=buttons)
 
             if was_in_prize:
                 msg_text = (
                     f"⚠️ <b>Diqqat!</b>\n\n"
-                    f"Siz <b>{channel_title}</b> kanalidan chiqib ketganingiz sababli "
+                    f"Siz <b>{safe_title}</b> kanalidan chiqib ketganingiz sababli "
                     f"<b>yopiq kanaldan chiqarildingiz!</b>\n\n"
                     f"Qayta kirish uchun kanalga qayta a'zo bo'ling va <b>«✅ Qayta a'zo bo'ldim»</b> tugmasini bosing:"
                 )
             else:
                 msg_text = (
                     f"⚠️ <b>Diqqat!</b>\n\n"
-                    f"Siz majburiy kanal (<b>{channel_title}</b>)dan chiqib ketdingiz.\n\n"
+                    f"Siz majburiy kanal (<b>{safe_title}</b>)dan chiqib ketdingiz.\n\n"
                     f"Botdan foydalanish uchun kanalga qayta a'zo bo'ling va <b>«✅ Qayta a'zo bo'ldim»</b> tugmasini bosing:"
                 )
 

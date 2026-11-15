@@ -80,6 +80,14 @@ async def send_prize_link(
             await user_repo.update_prize_access(user_id, True)
         return False
 
+    # Atomik tekshirish: sovg'a huquqini claim qilamiz (poygalarni oldini oladi)
+    user_repo = UserRepository(db) if db else None
+    if user_repo and not is_resubscribed:
+        claimed = await user_repo.claim_prize_access(user_id)
+        if not claimed:
+            logger.info(f"User {user_id} uchun sovg'a havolasi allaqachon claim qilingan.")
+            return False
+
     # Avval foydalanuvchini unban qilamiz (agar ilgari ban qilingan bo'lsa)
     try:
         await bot.unban_chat_member(
@@ -109,6 +117,20 @@ async def send_prize_link(
 
     if not invite_url:
         logger.error(f"Sovg'a havolasi yaratilmadi (user={user_id}, channel={contest.prize_channel_id})")
+        if user_repo and not is_resubscribed:
+            await user_repo.update_prize_access(user_id, False)
+
+        from app.core.config import settings
+        for adm_id in settings.ADMIN_IDS:
+            try:
+                await bot.send_message(
+                    adm_id,
+                    f"⚠️ <b>Diqqat!</b> Bot sovg'a kanaliga ({contest.prize_channel_id}) "
+                    f"1 martalik havola yarata olmadi!\nBot kanalda admin ekanligini va "
+                    f"«Invite Users via Link» huquqi borligini tekshiring.",
+                )
+            except Exception:
+                pass
         return False
 
     keyboard = InlineKeyboardMarkup(inline_keyboard=[[
@@ -158,9 +180,21 @@ async def send_prize_link(
             parse_mode="HTML",
         )
         logger.info(f"✅ Prize xabari yuborildi: user={user_id}, contest={contest.id}")
+
+        if db:
+            try:
+                from app.database.models import ContestWinner
+                winner = ContestWinner(contest_id=contest.id, user_id=user_id)
+                db.add(winner)
+                await db.commit()
+            except Exception:
+                pass
+
         return True
     except Exception as e:
         logger.error(f"send_message XATO (user={user_id}): {e}")
+        if user_repo and not is_resubscribed:
+            await user_repo.update_prize_access(user_id, False)
         return False
 
 

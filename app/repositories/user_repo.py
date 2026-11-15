@@ -42,6 +42,17 @@ class UserRepository(BaseRepository[User]):
         await self.session.commit()
         return result.scalar_one_or_none()
 
+    async def decrement_referral_count(self, telegram_id: int) -> User | None:
+        stmt = (
+            update(User)
+            .where(User.telegram_id == telegram_id, User.referral_count > 0)
+            .values(referral_count=User.referral_count - 1)
+            .returning(User)
+        )
+        result = await self.session.execute(stmt)
+        await self.session.commit()
+        return result.scalar_one_or_none()
+
     async def update_subscription_status(self, telegram_id: int, is_subscribed: bool):
         return await self.update_by_telegram_id(
             telegram_id=telegram_id, is_subscribed=is_subscribed
@@ -51,6 +62,17 @@ class UserRepository(BaseRepository[User]):
         return await self.update_by_telegram_id(
             telegram_id=telegram_id, has_prize_access=has_prize_access
         )
+
+    async def claim_prize_access(self, telegram_id: int) -> bool:
+        """Atomik ravishda sovg'a olish huquqini belgilash (race condition oldini olish)."""
+        stmt = (
+            update(User)
+            .where(User.telegram_id == telegram_id, User.has_prize_access.is_(False))
+            .values(has_prize_access=True)
+        )
+        result = await self.session.execute(stmt)
+        await self.session.commit()
+        return (result.rowcount or 0) > 0
 
     async def get_with_referrer(self, telegram_id: int) -> User | None:
         stmt = (

@@ -12,6 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.repositories.user_repo import UserRepository
 from app.repositories.referral_repo import ReferralRepository
 from app.repositories.secret_channel_repo import SecretChannelRepository
+from app.repositories.contest_repo import ContestRepository
 
 logger = logging.getLogger(__name__)
 
@@ -73,17 +74,23 @@ class ReferralService:
             return False
 
         # Referral yaratish (bonus_given=give_bonus)
+        contest_repo = ContestRepository(self.db)
+        active_contest = await contest_repo.get_active_contest()
+        contest_id = active_contest.id if active_contest else None
+
         referral = await self.referral_repo.create_referral(
             referrer_id=referrer.id,
             referred_id=new_user.id,
+            contest_id=contest_id,
         )
 
         # Yangi userning referrer_id sini yangilaymiz
         await self.user_repo.update(new_user.id, referrer_id=referrer.id)
 
         if give_bonus:
-            await self.referral_repo.mark_bonus_given(referral.id)
-            await self.user_repo.increment_referral_count(referrer_telegram_id)
+            claimed = await self.referral_repo.claim_bonus(referral.id)
+            if claimed:
+                await self.user_repo.increment_referral_count(referrer_telegram_id)
 
         logger.info(
             f"✅ Referral qayd: new={new_user_telegram_id} → referrer={referrer_telegram_id} (bonus={give_bonus})"
@@ -94,7 +101,7 @@ class ReferralService:
         """
         Taklif qilingan foydalanuvchi majburiy kanallarga a'zo bo'lgach chaqiriladi.
         Hali bonus berilmagan bo'lsa (bonus_given=False):
-        1. bonus_given = True qilinadi
+        1. bonus_given = True qilinadi (atomik UPDATE)
         2. Referrerning referral_count +1 qilinadi
         3. Referrerga bildirishnoma yuboriladi (notify_referrer)
         4. Referrer shartni bajargan bo'lsa prize link yuboriladi (check_and_send_prize)
@@ -111,8 +118,11 @@ class ReferralService:
         if not referrer:
             return False
 
-        # 1. Bonus berildi deb belgilaymiz
-        await self.referral_repo.mark_bonus_given(referral.id)
+        # 1. ATOMIK CLAIM BONUS: parallel so'rovlar orasida poyga (race condition) ni oldini oladi
+        claimed = await self.referral_repo.claim_bonus(referral.id)
+        if not claimed:
+            # Boshqa parallel so'rov (masalan chat_member yoki check_subscription) allaqachon sanadi
+            return False
 
         # 2. Referrerning referral_count +1 (DB da yangilanadi)
         await self.user_repo.increment_referral_count(referrer.telegram_id)

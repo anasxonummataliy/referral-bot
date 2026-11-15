@@ -4,7 +4,7 @@ services:
     container_name: referral-bot
     restart: unless-stopped
     ports:
-      - "8011:8011"
+      - "127.0.0.1:8011:8011"
     env_file:
       - .env
     volumes:

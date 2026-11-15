@@ -21,6 +21,19 @@ engine = create_async_engine(
     connect_args={"check_same_thread": False},
 )
 
+from sqlalchemy import event
+
+
+@event.listens_for(engine.sync_engine, "connect")
+def _set_sqlite_pragmas(conn, _):
+    """SQLite WAL rejimi va timeout sozlamalari ('database is locked' xatosini oldini olish)"""
+    cursor = conn.cursor()
+    cursor.execute("PRAGMA journal_mode=WAL")
+    cursor.execute("PRAGMA busy_timeout=15000")
+    cursor.execute("PRAGMA synchronous=NORMAL")
+    cursor.close()
+
+
 # Async Session Factory
 AsyncSessionLocal = async_sessionmaker(
     bind=engine,
@@ -42,7 +55,7 @@ async def get_db() -> AsyncGenerator[AsyncSession, None]:
 async def init_db():
     """Jadvallarni yaratish"""
     # Barcha modellarni import qilish
-    from app.database.models import User, Referral, Channel, SecretChannel, Contest, Admin  # noqa
+    from app.database.models import User, Referral, Channel, SecretChannel, Contest, Admin, ContestWinner  # noqa
     from app.database.base import Base
     from sqlalchemy import text
 
@@ -54,6 +67,10 @@ async def init_db():
             pass
         try:
             await conn.execute(text("ALTER TABLE contests ADD COLUMN prize_channel_invite_link VARCHAR(255)"))
+        except Exception:
+            pass
+        try:
+            await conn.execute(text("ALTER TABLE referrals ADD COLUMN contest_id INTEGER REFERENCES contests(id)"))
         except Exception:
             pass
 

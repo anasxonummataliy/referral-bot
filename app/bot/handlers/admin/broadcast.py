@@ -1,5 +1,6 @@
 import asyncio
-from aiogram import F
+import logging
+from aiogram import F, Bot
 from aiogram.types import (
     Message,
     CallbackQuery,
@@ -9,10 +10,14 @@ from aiogram.types import (
 from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
+from aiogram.exceptions import TelegramForbiddenError, TelegramRetryAfter
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.bot.handlers.admin.base import admin_router, is_admin, admin_main_keyboard
 from app.repositories.user_repo import UserRepository
+from app.database.session import AsyncSessionLocal
+
+logger = logging.getLogger(__name__)
 
 router = admin_router
 
@@ -81,6 +86,63 @@ async def process_broadcast_message(
     await state.set_state(BroadcastStates.confirm)
 
 
+async def _run_broadcast_task(
+    bot: Bot,
+    users: list,
+    source_chat_id: int,
+    source_message_id: int,
+    status_msg: Message,
+):
+    success = 0
+    failed = 0
+    blocked = 0
+
+    for user in users:
+        try:
+            await bot.copy_message(
+                chat_id=user.telegram_id,
+                from_chat_id=source_chat_id,
+                message_id=source_message_id,
+            )
+            success += 1
+        except TelegramRetryAfter as e:
+            await asyncio.sleep(e.retry_after)
+            try:
+                await bot.copy_message(
+                    chat_id=user.telegram_id,
+                    from_chat_id=source_chat_id,
+                    message_id=source_message_id,
+                )
+                success += 1
+            except Exception:
+                failed += 1
+        except TelegramForbiddenError:
+            blocked += 1
+            failed += 1
+            # User botni bloklagan bo'lsa uni is_active=False qilamiz
+            try:
+                async with AsyncSessionLocal() as session:
+                    repo = UserRepository(session)
+                    await repo.update_by_telegram_id(user.telegram_id, is_active=False)
+            except Exception:
+                pass
+        except Exception:
+            failed += 1
+
+        # Har bir xabar yuborilgach 0.04 soniya kutamiz (~25 xabar/sekund; Telegram cheklovi 30 msg/s)
+        await asyncio.sleep(0.04)
+
+    try:
+        await status_msg.edit_text(
+            f"✅ <b>Broadcast yakunlandi!</b>\n\n"
+            f"✅ Yetkazildi: <b>{success}</b>\n"
+            f"🚫 Botni bloklagan: <b>{blocked}</b>\n"
+            f"❌ Yetib bormadi: <b>{failed - blocked}</b>"
+        )
+    except Exception as e:
+        logger.error(f"Broadcast yakuniy xabarni tahrirlashda xato: {e}")
+
+
 @router.callback_query(F.data == "broadcast_confirm")
 async def confirm_broadcast_cb(
     callback: CallbackQuery, state: FSMContext, db: AsyncSession
@@ -100,34 +162,23 @@ async def confirm_broadcast_cb(
     user_repo = UserRepository(db)
     all_users = await user_repo.get_all_users()
 
-    success = 0
-    failed = 0
-
     status_msg = await callback.message.answer(
-        f"📤 Broadcast boshlandi...\nJami: {len(all_users)} ta"
+        f"📤 Broadcast boshlandi...\nJami: {len(all_users)} ta foydalanuvchi"
     )
 
-    for user in all_users:
-        try:
-            await callback.bot.copy_message(
-                chat_id=user.telegram_id,
-                from_chat_id=source_chat_id,
-                message_id=source_message_id,
-            )
-            success += 1
-        except Exception:
-            failed += 1
-
-        if (success + failed) % 50 == 0:
-            await asyncio.sleep(0.5)
-
-    await status_msg.edit_text(
-        f"✅ <b>Broadcast tugadi!</b>\n\n"
-        f"✅ Muvaffaqiyatli: <b>{success}</b>\n"
-        f"❌ Muvaffaqiyatsiz: <b>{failed}</b>"
+    # Alohida fon vazifasi sifatida ishga tushirish (timeout va poygalarni oldini oladi)
+    asyncio.create_task(
+        _run_broadcast_task(
+            bot=callback.bot,
+            users=all_users,
+            source_chat_id=source_chat_id,
+            source_message_id=source_message_id,
+            status_msg=status_msg,
+        )
     )
+
     await state.clear()
-    await callback.answer()
+    await callback.answer("📤 Xabar yuborish fonda boshlandi!")
 
 
 @router.callback_query(F.data == "broadcast_cancel")
