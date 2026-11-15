@@ -140,7 +140,8 @@ async def show_main_menu(
     from app.bot.handlers.user.share import build_share_url
 
     if user_id is None:
-        user_id = message.chat.id if (message.from_user and message.from_user.is_bot) else (message.from_user.id if message.from_user else message.chat.id)
+        is_bot = getattr(message.from_user, "is_bot", False) is True
+        user_id = message.chat.id if is_bot else (message.from_user.id if message.from_user else message.chat.id)
 
     sub_service = SubscriptionService(db)
 
@@ -221,9 +222,26 @@ async def show_main_menu(
 async def cmd_start(message: Message, bot: Bot, db: AsyncSession):
     user_id = message.from_user.id
 
-    # Userni doim yaratib qo'yamiz (admin bo'lsa ham)
+    # ── REFERRAL PAYLOAD ──────────────────────────────────────────────────────
+    referrer_id = None
+    if message.text and len(message.text.split()) > 1:
+        raw = message.text.split(maxsplit=1)[1].strip()
+        try:
+            payload = decode_payload(raw)
+            if payload.isdigit():
+                referrer_id = int(payload)
+        except Exception:
+            if raw.isdigit():
+                referrer_id = int(raw)
+
+    # ── USER YARATISH / OLISH ─────────────────────────────────────────────────
     user_repo = UserRepository(db)
-    _, _ = await user_repo.get_or_create(
+
+    # is_new ni ishonchli aniqlash: get_or_create dan avval tekshiramiz
+    existing = await user_repo.get_by_telegram_id(user_id)
+    is_really_new = existing is None
+
+    user, _ = await user_repo.get_or_create(
         telegram_id=user_id,
         full_name=message.from_user.full_name,
         username=message.from_user.username,
@@ -249,36 +267,9 @@ async def cmd_start(message: Message, bot: Bot, db: AsyncSession):
         )
         return
 
-    # ── REFERRAL PAYLOAD ──────────────────────────────────────────────────────
-    referrer_id = None
-    if message.text and len(message.text.split()) > 1:
-        raw = message.text.split(maxsplit=1)[1].strip()
-        try:
-            payload = decode_payload(raw)
-            if payload.isdigit():
-                referrer_id = int(payload)
-        except Exception:
-            if raw.isdigit():
-                referrer_id = int(raw)
-
-    # ── USER YARATISH / OLISH ─────────────────────────────────────────────────
-    user_repo = UserRepository(db)
-
-    # is_new ni ishonchli aniqlash: avval bazada bor-yo'qligini tekshiramiz
-    existing = await user_repo.get_by_telegram_id(user_id)
-    is_really_new = existing is None
-
-    _, _ = await user_repo.get_or_create(
-        telegram_id=user_id,
-        full_name=message.from_user.full_name,
-        username=message.from_user.username,
-        language_code=message.from_user.language_code,
-    )
-
     # ── REFERRAL QAYD ─────────────────────────────────────────────────────────
-    # Faqat haqiqatan yangi user + referrer mavjud + o'ziga o'zi emas
-    # Muhim: referral yozuvi yaratiladi, lekin +1 faqat majburiy kanallarga a'zo bo'lgach beriladi!
-    if is_really_new and referrer_id and referrer_id != user_id:
+    # Faqat referrer mavjud + o'ziga o'zi emas + (yangi user yoki hali referrer belgilanmagan)
+    if referrer_id and referrer_id != user_id and (is_really_new or user.referrer_id is None):
         ref_service = ReferralService(db)
         registered = await ref_service.process_new_referral(
             new_user_telegram_id=user_id,

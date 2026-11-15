@@ -176,4 +176,49 @@ async def test_my_referrals_cb_when_user_not_in_db(db_session):
     assert "Hali hech kimni taklif qilmadingiz" in text
 
 
+@pytest.mark.asyncio
+async def test_cmd_start_with_referral_payload_registers_referral_and_notifies(db_session):
+    """Test /start <referrer_id> registers referral and triggers notification"""
+    from app.bot.handlers.user.start import cmd_start
+    from app.database.models import User, Contest
+
+    # Referrer
+    referrer = User(telegram_id=7381087311, full_name="Referrer Anas", referral_count=0)
+    contest = Contest(title="Test Contest", required_referrals=1, is_active=True)
+    db_session.add_all([referrer, contest])
+    await db_session.commit()
+
+    # New user joins with /start 7381087311
+    message = MagicMock()
+    message.from_user.id = 8730701881
+    message.from_user.is_bot = False
+    message.from_user.full_name = "Invited Friend"
+    message.from_user.username = "invited_friend"
+    message.from_user.language_code = "uz"
+    message.chat.id = 8730701881
+    message.chat.full_name = "Invited Friend"
+    message.chat.username = "invited_friend"
+    message.text = "/start 7381087311"
+    message.answer = AsyncMock()
+
+    mock_bot = MagicMock()
+    mock_bot.send_message = AsyncMock()
+    mock_bot.get_me = AsyncMock(return_value=MagicMock(username="OralExamBot"))
+    mock_bot.get_chat_member = AsyncMock()
+    message.bot = mock_bot
+
+    await cmd_start(message, mock_bot, db_session)
+
+    # Referrer should have received a notification and referral_count should be +1!
+    await db_session.refresh(referrer)
+    assert referrer.referral_count == 1
+    mock_bot.send_message.assert_awaited()
+    # Check that a notification message was sent to referrer 7381087311
+    sent_to_referrer = any(
+        call.kwargs.get("chat_id") == 7381087311 for call in mock_bot.send_message.call_args_list
+    )
+    assert sent_to_referrer is True
+
+
+
 
