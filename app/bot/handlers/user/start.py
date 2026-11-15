@@ -138,13 +138,16 @@ async def show_main_menu(
     db: AsyncSession,
     contest,
     edit: bool = False,
+    user_id: int | None = None,
 ) -> None:
     """
     Foydalanuvchiga rasm + caption va kanallar yoki asosiy menyuni chiqarish.
     """
     from app.bot.handlers.user.share import build_share_url
 
-    user_id = message.from_user.id
+    if user_id is None:
+        user_id = message.chat.id if (message.from_user and message.from_user.is_bot) else (message.from_user.id if message.from_user else message.chat.id)
+
     sub_service = SubscriptionService(db)
 
     is_subscribed = await sub_service.check_full_subscription(
@@ -173,6 +176,14 @@ async def show_main_menu(
     # Obuna bor — 1-xabar: Faqat konkurs rasmi va matni; 2-xabar: Alohida matnda taklif/ulashish
     user_repo = UserRepository(db)
     user = await user_repo.get_by_telegram_id(user_id)
+    if not user:
+        chat_name = getattr(message.chat, "full_name", None) or "Foydalanuvchi"
+        chat_user = getattr(message.chat, "username", None)
+        user, _ = await user_repo.get_or_create(
+            telegram_id=user_id,
+            full_name=chat_name,
+            username=chat_user,
+        )
     ref_count = user.referral_count if user else 0
     target = contest.required_referrals if contest else 5
     bar = progress_bar(ref_count, target)
@@ -416,7 +427,7 @@ async def back_to_main_cb(callback: CallbackQuery, db: AsyncSession):
         )
         return
 
-    await show_main_menu(callback.message, db, contest, edit=True)
+    await show_main_menu(callback.message, db, contest, edit=True, user_id=callback.from_user.id)
 
 
 @router.callback_query(F.data == "user_mode_start")
@@ -431,7 +442,7 @@ async def user_mode_start_cb(callback: CallbackQuery, db: AsyncSession):
         await callback.message.delete()
     except Exception:
         pass
-    await show_main_menu(callback.message, db, contest, edit=False)
+    await show_main_menu(callback.message, db, contest, edit=False, user_id=callback.from_user.id)
 
 
 # ── /admin command ─────────────────────────────────────────────────────────────

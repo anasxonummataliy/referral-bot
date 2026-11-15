@@ -1,6 +1,7 @@
 """
 Foydalanuvchi statistikasi — natijam, sovg'am
 """
+import html
 import logging
 
 from aiogram import Router, F
@@ -29,12 +30,16 @@ async def my_referrals_cb(callback: CallbackQuery, db: AsyncSession):
     user_repo = UserRepository(db)
     user = await user_repo.get_by_telegram_id(user_id)
     if not user:
-        await safe_answer(callback, "Xatolik yuz berdi.", show_alert=True)
-        return
+        user, _ = await user_repo.get_or_create(
+            telegram_id=user_id,
+            full_name=callback.from_user.full_name or "Foydalanuvchi",
+            username=callback.from_user.username,
+            language_code=callback.from_user.language_code,
+        )
 
     referral_repo = ReferralRepository(db)
-    referrals = await referral_repo.get_user_referrals(user.id, only_confirmed=True)
-    ref_count = user.referral_count
+    referrals = await referral_repo.get_user_referrals(user.id, only_confirmed=True) if user else []
+    ref_count = user.referral_count if user else 0
 
     contest_repo = ContestRepository(db)
     contest = await contest_repo.get_active_contest()
@@ -49,14 +54,21 @@ async def my_referrals_cb(callback: CallbackQuery, db: AsyncSession):
     if referrals:
         text += "👥 <b>Do'stlaringiz:</b>\n"
         for i, ref in enumerate(referrals[:5], 1):
-            name = ref.referred.full_name if ref.referred else "Foydalanuvchi"
-            text += f"{i}. {name}\n"
+            raw_name = ref.referred.full_name if (ref.referred and ref.referred.full_name) else "Foydalanuvchi"
+            safe_name = html.escape(raw_name)
+            text += f"{i}. {safe_name}\n"
         if len(referrals) > 5:
             text += f"...va yana {len(referrals) - 5} nafar"
     else:
         text += "Hali hech kimni taklif qilmadingiz."
 
-    await callback.message.edit_text(text, reply_markup=back_keyboard())
+    try:
+        await callback.message.edit_text(text, reply_markup=back_keyboard())
+    except Exception:
+        try:
+            await callback.message.edit_caption(caption=text, reply_markup=back_keyboard())
+        except Exception:
+            await callback.message.answer(text, reply_markup=back_keyboard())
 
 
 from app.services.subscription_service import SubscriptionService
@@ -70,6 +82,13 @@ async def my_gifts_cb(callback: CallbackQuery, db: AsyncSession):
     user_id = callback.from_user.id
     user_repo = UserRepository(db)
     user = await user_repo.get_by_telegram_id(user_id)
+    if not user:
+        user, _ = await user_repo.get_or_create(
+            telegram_id=user_id,
+            full_name=callback.from_user.full_name or "Foydalanuvchi",
+            username=callback.from_user.username,
+            language_code=callback.from_user.language_code,
+        )
     user_refs = user.referral_count if user else 0
 
     contest_repo = ContestRepository(db)
@@ -100,7 +119,13 @@ async def my_gifts_cb(callback: CallbackQuery, db: AsyncSession):
                 [InlineKeyboardButton(text="⚡️ A'zolikni tekshirish", callback_data="check_subscription")],
                 [InlineKeyboardButton(text="🔙 Orqaga", callback_data="back_to_main")],
             ])
-            await callback.message.edit_text(text, reply_markup=keyboard)
+            try:
+                await callback.message.edit_text(text, reply_markup=keyboard)
+            except Exception:
+                try:
+                    await callback.message.edit_caption(caption=text, reply_markup=keyboard)
+                except Exception:
+                    await callback.message.answer(text, reply_markup=keyboard)
             return
 
         text = (
@@ -112,7 +137,13 @@ async def my_gifts_cb(callback: CallbackQuery, db: AsyncSession):
             [InlineKeyboardButton(text="🔗 Havolani olish", callback_data="get_prize_link")],
             [InlineKeyboardButton(text="🔙 Orqaga", callback_data="back_to_main")],
         ])
-        await callback.message.edit_text(text, reply_markup=keyboard)
+        try:
+            await callback.message.edit_text(text, reply_markup=keyboard)
+        except Exception:
+            try:
+                await callback.message.edit_caption(caption=text, reply_markup=keyboard)
+            except Exception:
+                await callback.message.answer(text, reply_markup=keyboard)
         return
     else:
         needed = target - user_refs
@@ -121,7 +152,13 @@ async def my_gifts_cb(callback: CallbackQuery, db: AsyncSession):
             f"Holat: <b>{user_refs} / {target}</b> ta do'st\n"
             f"Yana <b>{needed} ta</b> do'st taklif qilishingiz kerak."
         )
-        await callback.message.edit_text(text, reply_markup=back_keyboard())
+        try:
+            await callback.message.edit_text(text, reply_markup=back_keyboard())
+        except Exception:
+            try:
+                await callback.message.edit_caption(caption=text, reply_markup=back_keyboard())
+            except Exception:
+                await callback.message.answer(text, reply_markup=back_keyboard())
 
 
 @router.callback_query(F.data == "get_prize_link")
@@ -129,6 +166,13 @@ async def get_prize_link_cb(callback: CallbackQuery, db: AsyncSession):
     user_id = callback.from_user.id
     user_repo = UserRepository(db)
     user = await user_repo.get_by_telegram_id(user_id)
+    if not user:
+        user, _ = await user_repo.get_or_create(
+            telegram_id=user_id,
+            full_name=callback.from_user.full_name or "Foydalanuvchi",
+            username=callback.from_user.username,
+            language_code=callback.from_user.language_code,
+        )
 
     contest_repo = ContestRepository(db)
     contest = await contest_repo.get_active_contest()

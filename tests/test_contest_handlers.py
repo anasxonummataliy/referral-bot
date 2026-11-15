@@ -154,3 +154,26 @@ async def test_cmd_mystats_clean_without_obuna_tasdiqlandi(db_session):
     assert "✅ Tasdiqlangan: <b>2 ta</b>" in text
 
 
+@pytest.mark.asyncio
+async def test_my_referrals_cb_when_user_not_in_db(db_session):
+    """Test 'Natijam' button creates user if missing and renders stats"""
+    from app.bot.handlers.user.stats import my_referrals_cb
+
+    callback = MagicMock()
+    callback.from_user.id = 7381087311
+    callback.from_user.full_name = "Anasxon Ummataliy"
+    callback.from_user.username = "anasxon_ummataliy"
+    callback.from_user.language_code = "uz"
+    callback.answer = AsyncMock()
+    callback.message.edit_text = AsyncMock()
+
+    await my_referrals_cb(callback, db_session)
+
+    callback.message.edit_text.assert_awaited_once()
+    text = callback.message.edit_text.call_args[0][0]
+    assert "📊 <b>Sizning natijangiz</b>" in text
+    assert "✅ Tasdiqlangan: <b>0 ta</b>" in text
+    assert "Hali hech kimni taklif qilmadingiz" in text
+
+
+
