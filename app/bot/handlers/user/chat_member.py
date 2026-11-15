@@ -83,7 +83,8 @@ async def on_chat_member_updated(
             )
             buttons = []
             if channel_link:
-                buttons.append([InlineKeyboardButton(text=f"📢 {channel_title}", url=channel_link)])
+                buttons.append([InlineKeyboardButton(text=f"📢 {channel_title} ↗️", url=channel_link)])
+            buttons.append([InlineKeyboardButton(text="✅ Qayta a'zo bo'ldim", callback_data="check_subscription")])
             keyboard = InlineKeyboardMarkup(inline_keyboard=buttons)
 
             if was_in_prize:
@@ -91,13 +92,13 @@ async def on_chat_member_updated(
                     f"⚠️ <b>Diqqat!</b>\n\n"
                     f"Siz <b>{channel_title}</b> kanalidan chiqib ketganingiz sababli "
                     f"<b>yopiq kanaldan chiqarildingiz!</b>\n\n"
-                    f"Qayta kirish uchun kanalga qayta a'zo bo'ling. A'zoligingiz avtomatik tekshiriladi:"
+                    f"Qayta kirish uchun kanalga qayta a'zo bo'ling va <b>«✅ Qayta a'zo bo'ldim»</b> tugmasini bosing:"
                 )
             else:
                 msg_text = (
                     f"⚠️ <b>Diqqat!</b>\n\n"
                     f"Siz majburiy kanal (<b>{channel_title}</b>)dan chiqib ketdingiz.\n\n"
-                    f"Botdan foydalanish uchun kanalga qayta a'zo bo'ling. A'zoligingiz avtomatik tekshiriladi:"
+                    f"Botdan foydalanish uchun kanalga qayta a'zo bo'ling va <b>«✅ Qayta a'zo bo'ldim»</b> tugmasini bosing:"
                 )
 
             await bot.send_message(

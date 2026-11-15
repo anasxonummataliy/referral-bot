@@ -112,16 +112,21 @@ class SubscriptionMiddleware(BaseMiddleware):
 
         # Keyboard
         buttons = []
-        for ch in channels:
+        for i, ch in enumerate(channels, 1):
             if ch.username:
                 link = f"https://t.me/{ch.username.lstrip('@')}"
                 icon = "📢"
             else:
-                link = f"https://t.me/c/{abs(ch.channel_id)}"
+                invite = getattr(ch, "invite_link", None)
+                link = invite or f"https://t.me/c/{abs(ch.channel_id)}"
                 icon = "🔒"
+            prefix = f"{i}. " if len(channels) > 1 else ""
             buttons.append([
-                InlineKeyboardButton(text=f"{icon} {ch.title}", url=link)
+                InlineKeyboardButton(text=f"{prefix}{icon} {ch.title} ↗️", url=link)
             ])
+        buttons.append([
+            InlineKeyboardButton(text="✅ A'zo bo'ldim", callback_data="check_subscription")
+        ])
         keyboard = InlineKeyboardMarkup(inline_keyboard=buttons)
 
         try:

@@ -70,9 +70,9 @@ async def _loading_animation(message: Message) -> None:
 
 # ── Obuna keyboard ────────────────────────────────────────────────────────────
 def _subscription_keyboard(channels) -> InlineKeyboardMarkup:
-    """Kanallar ro'yxati."""
+    """Kanallar ro'yxati va obunani tekshirish tugmasi."""
     buttons = []
-    for ch in channels:
+    for i, ch in enumerate(channels, 1):
         if ch.username:
             link = f"https://t.me/{ch.username.lstrip('@')}"
             icon = "📢"
@@ -80,9 +80,13 @@ def _subscription_keyboard(channels) -> InlineKeyboardMarkup:
             invite = getattr(ch, "invite_link", None)
             link = invite or f"https://t.me/c/{abs(ch.channel_id)}"
             icon = "🔒"
+        prefix = f"{i}. " if len(channels) > 1 else ""
         buttons.append([
-            InlineKeyboardButton(text=f"{icon} {ch.title} ↗️", url=link)
+            InlineKeyboardButton(text=f"{prefix}{icon} {ch.title} ↗️", url=link)
         ])
+    buttons.append([
+        InlineKeyboardButton(text="✅ A'zo bo'ldim", callback_data="check_subscription")
+    ])
     return InlineKeyboardMarkup(inline_keyboard=buttons)
 
 
@@ -91,16 +95,22 @@ def _build_subscription_text(contest) -> str:
     Konkurs kirish xabari / rasm caption.
     """
     if contest and contest.welcome_message:
-        return f"{contest.welcome_message.strip()}\n\n👇 <i>Qatnashish uchun quyidagi kanallarga a'zo bo'ling:</i>"
+        return (
+            f"{contest.welcome_message.strip()}\n\n"
+            "👇 <i>Qatnashish uchun quyidagi kanallarga a'zo bo'ling va <b>«✅ A'zo bo'ldim»</b> tugmasini bosing:</i>"
+        )
     elif contest:
         return (
             f"🏆 <b>{contest.title}</b> 🌟\n\n"
             f"🎯 <b>{contest.required_referrals} ta</b> do'stingizni taklif qiling "
             f"va <b>yopiq VIP kanalga</b> 1 martalik link oling! 🎁\n\n"
-            "👇 <i>Qatnashish uchun quyidagi kanallarga a'zo bo'ling:</i>"
+            "👇 <i>Qatnashish uchun quyidagi kanallarga a'zo bo'ling va <b>«✅ A'zo bo'ldim»</b> tugmasini bosing:</i>"
         )
     else:
-        return "👋 <b>Assalomu alaykum!</b> ✨\n\nTez orada yangi konkurs boshlanadi — kuzatib boring! 🔔"
+        return (
+            "👋 <b>Assalomu alaykum!</b> ✨\n\n"
+            "👇 <i>Botdan foydalanish uchun quyidagi kanallarga a'zo bo'ling va <b>«✅ A'zo bo'ldim»</b> tugmasini bosing:</i>"
+        )
 
 
 async def _send_or_replace(
@@ -307,16 +317,16 @@ async def check_subscription_cb(callback: CallbackQuery, db: AsyncSession):
     user_id = callback.from_user.id
     sub_service = SubscriptionService(db)
 
-    is_subscribed = await sub_service.check_full_subscription(
+    unsubscribed = await sub_service.get_unsubscribed_channels(
         bot=callback.bot, telegram_id=user_id
     )
 
-    if is_subscribed:
+    if not unsubscribed:
         # Yangi referral bo'lsa uni tasdiqlaymiz (+1 qo'shiladi)
         ref_service = ReferralService(db)
         await ref_service.confirm_referral(user_id, callback.bot)
 
-        await safe_answer(callback, "✅ Obuna tasdiqlandi!")
+        await safe_answer(callback, "✅ Obuna tasdiqlandi! Xush kelibsiz! 🎉")
         try:
             await callback.message.delete()
         except Exception:
@@ -364,8 +374,8 @@ async def check_subscription_cb(callback: CallbackQuery, db: AsyncSession):
         # Prize link bo'lmaganda yoki shart to'liq bajarilmaganda — natija va havolani bitta postda chiqaramiz:
         text = (
             "✅ <b>Obuna tasdiqlandi!</b>\n\n"
-            f"📊 <b>Sizning natijangiz</b>\n\n"
-            f"✅ Tasdiqlangan: <b>{ref_count} ta</b>\n\n"
+            f"🎯 <b>Konkurs sharti:</b> {target} ta do'st taklif qilish\n\n"
+            f"📊 <b>Natijangiz:</b> {ref_count} / {target} ta do'st\n"
             f"{bar}\n\n"
             f"🔗 <b>Taklif havolangiz:</b>\n"
             f"<code>{referral_link}</code>"
@@ -383,10 +393,11 @@ async def check_subscription_cb(callback: CallbackQuery, db: AsyncSession):
                 await kick_user_from_prize_channel(callback.bot, contest.prize_channel_id, user_id)
                 await user_repo.update_prize_access(user_id, False)
 
+        missing_titles = "\n".join([f"• {c.title}" for c in unsubscribed])
         await safe_answer(
             callback,
-            "❌ Siz hali barcha kanallarga a'zo bo'lmagansiz!\n"
-            "Har bir kanalga a'zo bo'lib, qayta urinib ko'ring.",
+            f"❌ Siz hali quyidagi kanal(lar)ga a'zo bo'lmadingiz:\n\n{missing_titles}\n\n"
+            "Iltimos, har bir kanalga a'zo bo'lib, qayta urinib ko'ring.",
             show_alert=True,
         )
 

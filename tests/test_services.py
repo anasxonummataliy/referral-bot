@@ -224,3 +224,7 @@ async def test_check_full_subscription_blocks_when_inaccessible(db_session: Asyn
     is_sub = await service.check_full_subscription(bot=mock_bot, telegram_id=8122865725)
     assert is_sub is False
 
+    unsub = await service.get_unsubscribed_channels(bot=mock_bot, telegram_id=8122865725)
+    assert len(unsub) == 1
+    assert unsub[0].title == "Test Channel"
+

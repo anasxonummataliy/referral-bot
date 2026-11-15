@@ -19,28 +19,39 @@ class SubscriptionService:
     async def get_required_channels(self) -> Sequence[Channel]:
         return await self.channel_repo.get_required_channels()
 
-    async def check_full_subscription(self, bot: Bot, telegram_id: int) -> bool:
-        """Foydalanuvchi barcha majburiy kanallarga obuna bo'lganligini tekshiradi"""
+    async def get_unsubscribed_channels(
+        self, bot: Bot, telegram_id: int
+    ) -> list[Channel]:
+        """
+        Foydalanuvchi obuna bo'lmagan majburiy kanallar ro'yxatini qaytaradi.
+        Barcha kanallarga a'zo bo'lsa bo'sh ro'yxat ([]) qaytadi.
+        """
         required_channels = await self.get_required_channels()
-
         if not required_channels:
-            await self.user_repo.update_subscription_status(telegram_id, True)
-            return True
+            return []
 
+        unsubscribed = []
         for channel in required_channels:
             try:
                 member = await bot.get_chat_member(
                     chat_id=channel.channel_id, user_id=telegram_id
                 )
                 if member.status in ["left", "kicked"]:
-                    await self.user_repo.update_subscription_status(telegram_id, False)
-                    return False
+                    unsubscribed.append(channel)
+                elif member.status == "restricted" and not getattr(member, "is_member", True):
+                    unsubscribed.append(channel)
             except Exception as e:
-                logger.warning(
-                    f"⚠️ Obuna tekshirishda xatolik (user={telegram_id}, channel={channel.channel_id} - {channel.title}): {e}"
+                # PARTICIPANT_ID_INVALID yoki boshqa xatolar user kanalda yo'qligini bildiradi
+                unsubscribed.append(channel)
+                logger.info(
+                    f"User {telegram_id} kanalda topilmadi ({channel.channel_id} - {channel.title}): {e}"
                 )
-                await self.user_repo.update_subscription_status(telegram_id, False)
-                return False
 
-        await self.user_repo.update_subscription_status(telegram_id, True)
-        return True
+        return unsubscribed
+
+    async def check_full_subscription(self, bot: Bot, telegram_id: int) -> bool:
+        """Foydalanuvchi barcha majburiy kanallarga obuna bo'lganligini tekshiradi"""
+        unsubscribed = await self.get_unsubscribed_channels(bot, telegram_id)
+        is_sub = len(unsubscribed) == 0
+        await self.user_repo.update_subscription_status(telegram_id, is_sub)
+        return is_sub
