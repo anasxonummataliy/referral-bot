@@ -1,3 +1,4 @@
+import logging
 from typing import Sequence
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -5,6 +6,8 @@ from app.repositories.channel_repo import ChannelRepository
 from app.repositories.user_repo import UserRepository
 from app.database.models import Channel
 from aiogram import Bot
+
+logger = logging.getLogger(__name__)
 
 
 class SubscriptionService:
@@ -32,7 +35,22 @@ class SubscriptionService:
                 if member.status in ["left", "kicked"]:
                     await self.user_repo.update_subscription_status(telegram_id, False)
                     return False
-            except Exception:
+            except Exception as e:
+                err_str = str(e).lower()
+                # Agar botning o'zi kanalda admin bo'lmasa yoki kanal topilmasa:
+                if (
+                    "chat not found" in err_str
+                    or "not a member" in err_str
+                    or "member list is inaccessible" in err_str
+                    or "bot is not a member" in err_str
+                ):
+                    logger.warning(
+                        f"⚠️ Bot kanalda ({channel.channel_id} - {channel.title}) admin emas yoki ruxsat yo'q: {e}. "
+                        "Ushbu kanal tekshiruvi o'tkazib yuborildi."
+                    )
+                    continue  # Botning o'zida muammo bo'lsa, foydalanuvchini bloklamaymiz
+
+                logger.warning(f"Obuna tekshirishda xatolik (user={telegram_id}, channel={channel.channel_id}): {e}")
                 await self.user_repo.update_subscription_status(telegram_id, False)
                 return False
 

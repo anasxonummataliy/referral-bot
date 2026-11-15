@@ -34,9 +34,6 @@ def subscription_keyboard(channels) -> InlineKeyboardMarkup:
             link = invite or f"https://t.me/c/{abs(ch.channel_id)}"
             icon = "🔒"
         buttons.append([InlineKeyboardButton(text=f"{icon} {ch.title} ↗️", url=link)])
-    buttons.append([
-        InlineKeyboardButton(text="⚡️ A'zo bo'ldim — Tekshirish ✅", callback_data="check_subscription")
-    ])
     return InlineKeyboardMarkup(inline_keyboard=buttons)
 
 

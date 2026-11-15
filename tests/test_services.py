@@ -200,3 +200,26 @@ async def test_notify_referrer_rich_user_details(db_session: AsyncSession):
     assert "<code>987654321</code>" in sent_text
     assert 'href="tg://user?id=987654321"' in sent_text
     assert "Natijangiz: <b>2 / 5</b>" in sent_text
+
+
+@pytest.mark.asyncio
+async def test_check_full_subscription_skips_inaccessible_channel(db_session: AsyncSession):
+    """Verify that when bot cannot access channel (e.g. not admin/chat not found), it doesn't falsely block users"""
+    from unittest.mock import AsyncMock, MagicMock
+    from aiogram.exceptions import TelegramBadRequest
+    from app.services.subscription_service import SubscriptionService
+    from app.database.models import Channel
+
+    channel = Channel(channel_id=-1001758698923, title="Test Channel", is_active=True, is_required=True)
+    db_session.add(channel)
+    await db_session.commit()
+
+    service = SubscriptionService(db_session)
+    mock_bot = MagicMock()
+    mock_bot.get_chat_member = AsyncMock(
+        side_effect=TelegramBadRequest(method=MagicMock(), message="Bad Request: chat not found")
+    )
+
+    is_sub = await service.check_full_subscription(bot=mock_bot, telegram_id=8122865725)
+    assert is_sub is True
+

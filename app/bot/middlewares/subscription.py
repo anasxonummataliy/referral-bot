@@ -122,12 +122,6 @@ class SubscriptionMiddleware(BaseMiddleware):
             buttons.append([
                 InlineKeyboardButton(text=f"{icon} {ch.title}", url=link)
             ])
-        buttons.append([
-            InlineKeyboardButton(
-                text="✅ A'zo bo'ldim — tekshirish",
-                callback_data="check_subscription",
-            )
-        ])
         keyboard = InlineKeyboardMarkup(inline_keyboard=buttons)
 
         try:

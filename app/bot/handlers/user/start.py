@@ -70,7 +70,7 @@ async def _loading_animation(message: Message) -> None:
 
 # ── Obuna keyboard ────────────────────────────────────────────────────────────
 def _subscription_keyboard(channels) -> InlineKeyboardMarkup:
-    """Kanallar ro'yxati + tekshirish tugmasi."""
+    """Kanallar ro'yxati."""
     buttons = []
     for ch in channels:
         if ch.username:
@@ -83,12 +83,6 @@ def _subscription_keyboard(channels) -> InlineKeyboardMarkup:
         buttons.append([
             InlineKeyboardButton(text=f"{icon} {ch.title} ↗️", url=link)
         ])
-    buttons.append([
-        InlineKeyboardButton(
-            text="✅ A'zo bo'ldim — Tekshirish",
-            callback_data="check_subscription",
-        )
-    ])
     return InlineKeyboardMarkup(inline_keyboard=buttons)
 
 
