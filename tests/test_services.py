@@ -197,7 +197,7 @@ async def test_notify_referrer_rich_user_details(db_session: AsyncSession):
     sent_text = mock_bot.send_message.call_args.kwargs["text"]
     assert "John Doe" in sent_text
     assert "@johndoe" in sent_text
-    assert "<code>987654321</code>" in sent_text
+    assert "• <b>ID:</b>" not in sent_text
     assert 'href="tg://user?id=987654321"' in sent_text
     assert "Natijangiz: <b>2 / 5</b>" in sent_text
 

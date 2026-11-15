@@ -63,7 +63,6 @@ async def notify_referrer(
         f"• <b>Username:</b> {uname_str}",
     ]
     if u_id:
-        lines.append(f"• <b>ID:</b> <code>{u_id}</code>")
         lines.append(f"• <b>Profil:</b> <a href=\"tg://user?id={u_id}\">Profilga o'tish ↗️</a>")
 
     lines.append(f"\n📊 Natijangiz: <b>{ref_count} / {target}</b> ta do'st")
