@@ -204,8 +204,8 @@ async def test_notify_referrer_rich_user_details(db_session: AsyncSession):
 
 
 @pytest.mark.asyncio
-async def test_check_full_subscription_skips_inaccessible_channel(db_session: AsyncSession):
-    """Verify that when bot cannot access channel (e.g. not admin/chat not found), it doesn't falsely block users"""
+async def test_check_full_subscription_blocks_when_inaccessible(db_session: AsyncSession):
+    """Verify that when bot cannot access channel (e.g. not admin/chat not found), it treats user as not subscribed"""
     from unittest.mock import AsyncMock, MagicMock
     from aiogram.exceptions import TelegramBadRequest
     from app.services.subscription_service import SubscriptionService
@@ -222,5 +222,5 @@ async def test_check_full_subscription_skips_inaccessible_channel(db_session: As
     )
 
     is_sub = await service.check_full_subscription(bot=mock_bot, telegram_id=8122865725)
-    assert is_sub is True
+    assert is_sub is False
 
