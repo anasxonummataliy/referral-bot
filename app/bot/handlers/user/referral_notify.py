@@ -65,11 +65,20 @@ async def notify_referrer(
     if u_id:
         lines.append(f"• <b>Profil:</b> <a href=\"tg://user?id={u_id}\">Profilga o'tish ↗️</a>")
 
+    in_prize = False
+    if contest and contest.prize_channel_id:
+        from app.bot.handlers.user.prize import is_user_in_prize_channel
+        in_prize = await is_user_in_prize_channel(bot, contest.prize_channel_id, referrer_telegram_id)
+        if in_prize:
+            await user_repo.update_prize_access(referrer_telegram_id, True)
+
     lines.append(f"\n📊 Natijangiz: <b>{ref_count} / {target}</b> ta do'st")
     if remaining > 0:
         lines.append(f"Yana <b>{remaining} ta</b> do'st taklif qilishingiz kerak.")
     else:
         lines.append("\n🎉 <b>Tabriklaymiz! Siz barcha shartlarni bajardingiz!</b>")
+        if in_prize:
+            lines.append(f"ℹ️ <i>Siz allaqachon «{contest.prize_channel_title or 'Sovrin'}» kanaliga a'zo ekansiz.</i>")
 
     text = "\n".join(lines)
 
@@ -86,7 +95,7 @@ async def notify_referrer(
     share_url = build_share_url(referral_link, contest)
 
     buttons = []
-    if ref_count >= target:
+    if ref_count >= target and not in_prize and not referrer.has_prize_access:
         buttons.append([InlineKeyboardButton(text="🎁 Sovg'ani olish", callback_data="get_prize_link")])
     buttons.append([
         InlineKeyboardButton(

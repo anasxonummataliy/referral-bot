@@ -19,6 +19,20 @@ from app.repositories.user_repo import UserRepository
 logger = logging.getLogger(__name__)
 
 
+async def is_user_in_prize_channel(bot: Bot, prize_channel_id: int, user_id: int) -> bool:
+    """Foydalanuvchi allaqachon sovg'a kanalida bor-yo'qligini tekshiradi."""
+    try:
+        member = await bot.get_chat_member(chat_id=prize_channel_id, user_id=user_id)
+        if getattr(member, "status", None) in ["creator", "administrator", "member"]:
+            return True
+        if getattr(member, "status", None) == "restricted" and getattr(member, "is_member", True):
+            return True
+        return False
+    except Exception as e:
+        logger.debug(f"is_user_in_prize_channel check (user={user_id}): {e}")
+        return False
+
+
 async def kick_user_from_prize_channel(bot: Bot, prize_channel_id: int, user_id: int) -> bool:
     """
     Foydalanuvchini yopiq kanaldan chiqarib yuborish.
@@ -55,6 +69,17 @@ async def send_prize_link(
         logger.warning(f"send_prize_link: contest yoki prize_channel_id yo'q (user={user_id})")
         return False
 
+    # 0. Foydalanuvchi allaqachon sovg'a kanalida bo'lsa — unga havola berilmaydi!
+    in_prize = await is_user_in_prize_channel(bot, contest.prize_channel_id, user_id)
+    if in_prize:
+        logger.info(
+            f"User {user_id} allaqachon prize kanalda ({contest.prize_channel_id}). Sovg'a havolasi berilmadi."
+        )
+        if db:
+            user_repo = UserRepository(db)
+            await user_repo.update_prize_access(user_id, True)
+        return False
+
     # Avval foydalanuvchini unban qilamiz (agar ilgari ban qilingan bo'lsa)
     try:
         await bot.unban_chat_member(
@@ -69,7 +94,7 @@ async def send_prize_link(
     try:
         invite = await bot.create_chat_invite_link(
             chat_id=contest.prize_channel_id,
-            member_limit=1,              # Faqat 1 kishi kiradi
+            member_limit=1,              # Qat'iy faqat 1 kishi kiradi
             creates_join_request=False,  # To'g'ridan kiradi
             name=f"User {user_id}",
         )
@@ -80,16 +105,10 @@ async def send_prize_link(
             f"channel={contest.prize_channel_id}): {e}"
         )
 
-    # 1 martalik link yaratish o'xshamasa (bot admin qilinmagan bo'lsa), zaxira havolasini olamiz
-    if not invite_url:
-        invite_url = getattr(contest, "prize_channel_invite_link", None)
-        if not invite_url and contest.prize_channel_id == -1003750541188:
-            invite_url = "https://t.me/+FdQg1j_I_pBjZDg0"
-
     channel_title = contest.prize_channel_title or "Sovrin kanal"
 
     if not invite_url:
-        logger.error(f"Sovg'a havolasi topilmadi (user={user_id}, channel={contest.prize_channel_id})")
+        logger.error(f"Sovg'a havolasi yaratilmadi (user={user_id}, channel={contest.prize_channel_id})")
         return False
 
     keyboard = InlineKeyboardMarkup(inline_keyboard=[[
@@ -187,6 +206,15 @@ async def check_and_send_prize(
             await user_repo.update_prize_access(referrer_telegram_id, False)
         return False
 
+    # Foydalanuvchi allaqachon sovg'a kanalida bo'lsa — unga havola berilmaydi!
+    in_prize = await is_user_in_prize_channel(bot, contest.prize_channel_id, referrer_telegram_id)
+    if in_prize:
+        logger.info(
+            f"User {referrer_telegram_id} allaqachon prize kanalda ({contest.prize_channel_id}). Sovg'a havolasi berilmadi."
+        )
+        await user_repo.update_prize_access(referrer_telegram_id, True)
+        return False
+
     # Agar allaqachon prize berilgan bo'lsa va force=False bo'lsa
     if referrer.has_prize_access and not force and not is_resubscribed:
         return False
@@ -197,6 +225,7 @@ async def check_and_send_prize(
         user_id=referrer_telegram_id,
         contest=contest,
         is_resubscribed=is_resubscribed,
+        db=db,
     )
     if sent:
         await user_repo.update_prize_access(referrer_telegram_id, True)

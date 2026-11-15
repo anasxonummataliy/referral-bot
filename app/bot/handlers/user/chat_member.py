@@ -127,7 +127,11 @@ async def on_chat_member_updated(
             if contest and contest.prize_channel_id:
                 fresh_user = await user_repo.get_by_telegram_id(user.id)
                 if fresh_user and fresh_user.referral_count >= contest.required_referrals:
-                    if not fresh_user.has_prize_access:
+                    from app.bot.handlers.user.prize import is_user_in_prize_channel
+                    in_prize = await is_user_in_prize_channel(bot, contest.prize_channel_id, user.id)
+                    if in_prize:
+                        await user_repo.update_prize_access(user.id, True)
+                    elif not fresh_user.has_prize_access:
                         sent = await send_prize_link(
                             bot=bot,
                             user_id=user.id,

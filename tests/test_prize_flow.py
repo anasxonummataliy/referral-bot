@@ -215,9 +215,17 @@ class TestChatMemberUpdatedFlow:
         await db_session.commit()
 
         bot = MagicMock()
-        mock_member = MagicMock()
-        mock_member.status = "member"
-        bot.get_chat_member = AsyncMock(return_value=mock_member)
+        mock_member_sub = MagicMock()
+        mock_member_sub.status = "member"
+        mock_member_prize = MagicMock()
+        mock_member_prize.status = "left"
+
+        async def mock_get_chat_member(chat_id, user_id):
+            if chat_id == -100444555:
+                return mock_member_sub
+            return mock_member_prize
+
+        bot.get_chat_member = AsyncMock(side_effect=mock_get_chat_member)
         bot.unban_chat_member = AsyncMock(return_value=True)
         mock_invite = MagicMock()
         mock_invite.invite_link = "https://t.me/+NewOneTimeLink"
@@ -297,4 +305,103 @@ class TestChatMemberUpdatedFlow:
         assert kwargs["chat_id"] == 333444
         assert "Obuna avtomatik tasdiqlandi" in kwargs["text"]
         assert "Taklif havolangiz" in kwargs["text"]
+
+    async def test_user_already_in_prize_channel_does_not_get_link(
+        self, db_session: AsyncSession
+    ):
+        """User already in prize channel must NOT be given another invite link"""
+        user = User(
+            telegram_id=555666,
+            full_name="Already In Prize User",
+            referral_count=5,
+            is_subscribed=True,
+            has_prize_access=False,
+        )
+        contest = Contest(
+            title="Konkurs",
+            prize_channel_id=-100888999,
+            prize_channel_title="Yopiq Dominators",
+            required_referrals=5,
+            is_active=True,
+        )
+        db_session.add_all([user, contest])
+        await db_session.commit()
+
+        bot = MagicMock()
+        mock_member = MagicMock()
+        mock_member.status = "member"
+        bot.get_chat_member = AsyncMock(return_value=mock_member)
+        bot.create_chat_invite_link = AsyncMock()
+        bot.send_message = AsyncMock()
+
+        result = await check_and_send_prize(bot, 555666, db_session)
+
+        # Must return False and NOT call create_chat_invite_link
+        assert result is False
+        bot.create_chat_invite_link.assert_not_called()
+        bot.send_message.assert_not_called()
+
+        await db_session.refresh(user)
+        assert user.has_prize_access is True
+
+    async def test_get_prize_link_cb_blocked_when_already_in_channel_or_already_claimed(
+        self, db_session: AsyncSession
+    ):
+        """get_prize_link callback blocks users already in prize channel or already claimed"""
+        from app.bot.handlers.user.stats import get_prize_link_cb
+        from aiogram.types import CallbackQuery
+
+        user = User(
+            telegram_id=999111,
+            full_name="Clicker",
+            referral_count=5,
+            is_subscribed=True,
+            has_prize_access=False,
+        )
+        contest = Contest(
+            title="Konkurs",
+            prize_channel_id=-100123456,
+            prize_channel_title="Dominators",
+            required_referrals=5,
+            is_active=True,
+        )
+        db_session.add_all([user, contest])
+        await db_session.commit()
+
+        bot = MagicMock()
+        mock_member = MagicMock()
+        mock_member.status = "member"  # Already in prize channel
+        bot.get_chat_member = AsyncMock(return_value=mock_member)
+        bot.create_chat_invite_link = AsyncMock()
+
+        cb = MagicMock()
+        cb.bot = bot
+        cb.from_user.id = 999111
+        cb.from_user.full_name = "Clicker"
+        cb.from_user.username = "clicker"
+        cb.from_user.language_code = "uz"
+        cb.answer = AsyncMock()
+
+        await get_prize_link_cb(cb, db_session)
+
+        # Verified alert shown that user is already in channel, no invite link created
+        cb.answer.assert_awaited_once()
+        args, kwargs = cb.answer.call_args
+        answered_text = args[0] if args else kwargs.get("text", "")
+        assert "allaqachon" in answered_text
+        bot.create_chat_invite_link.assert_not_called()
+
+        # Now test case where user is NOT in channel, but has already claimed (has_prize_access=True)
+        cb.answer.reset_mock()
+        mock_member.status = "left"  # Not in channel
+        user.has_prize_access = True
+        await db_session.commit()
+
+        await get_prize_link_cb(cb, db_session)
+
+        cb.answer.assert_awaited_once()
+        args, kwargs = cb.answer.call_args
+        answered_text = args[0] if args else kwargs.get("text", "")
+        assert "faqat 1 marta beriladi" in answered_text
+        bot.create_chat_invite_link.assert_not_called()
 

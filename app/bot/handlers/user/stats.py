@@ -72,7 +72,11 @@ async def my_referrals_cb(callback: CallbackQuery, db: AsyncSession):
 
 
 from app.services.subscription_service import SubscriptionService
-from app.bot.handlers.user.prize import send_prize_link, kick_user_from_prize_channel
+from app.bot.handlers.user.prize import (
+    send_prize_link,
+    kick_user_from_prize_channel,
+    is_user_in_prize_channel,
+)
 
 
 @router.callback_query(F.data == "my_gifts")
@@ -119,6 +123,46 @@ async def my_gifts_cb(callback: CallbackQuery, db: AsyncSession):
                 [InlineKeyboardButton(text="⚡️ A'zolikni tekshirish", callback_data="check_subscription")],
                 [InlineKeyboardButton(text="🔙 Orqaga", callback_data="back_to_main")],
             ])
+            try:
+                await callback.message.edit_text(text, reply_markup=keyboard)
+            except Exception:
+                try:
+                    await callback.message.edit_caption(caption=text, reply_markup=keyboard)
+                except Exception:
+                    await callback.message.answer(text, reply_markup=keyboard)
+            return
+
+        # Foydalanuvchi allaqachon sovg'a kanalida bormi?
+        in_prize = False
+        if contest.prize_channel_id:
+            in_prize = await is_user_in_prize_channel(callback.bot, contest.prize_channel_id, user_id)
+
+        if in_prize:
+            if not user.has_prize_access:
+                await user_repo.update_prize_access(user_id, True)
+            text = (
+                f"🎁 <b>Sovg'a: {prize_name}</b>\n\n"
+                f"✅ Shart bajarilgan ({user_refs}/{target} ta do'st).\n\n"
+                f"ℹ️ <b>Siz allaqachon «{prize_name}» kanaliga a'zo ekansiz.</b>"
+            )
+            keyboard = back_keyboard()
+            try:
+                await callback.message.edit_text(text, reply_markup=keyboard)
+            except Exception:
+                try:
+                    await callback.message.edit_caption(caption=text, reply_markup=keyboard)
+                except Exception:
+                    await callback.message.answer(text, reply_markup=keyboard)
+            return
+
+        if user.has_prize_access:
+            text = (
+                f"🎁 <b>Sovg'a: {prize_name}</b>\n\n"
+                f"✅ Shart bajarilgan ({user_refs}/{target} ta do'st).\n\n"
+                f"ℹ️ <b>Sizga 1 martalik havola yuborilgan.</b>\n"
+                f"<i>Har bir ishtirokchiga havola faqat 1 marta beriladi.</i>"
+            )
+            keyboard = back_keyboard()
             try:
                 await callback.message.edit_text(text, reply_markup=keyboard)
             except Exception:
@@ -197,11 +241,34 @@ async def get_prize_link_cb(callback: CallbackQuery, db: AsyncSession):
         )
         return
 
+    channel_title = contest.prize_channel_title or "Sovrin"
+
+    # 1. Foydalanuvchi allaqachon sovg'a kanalida bo'lsa — unga havola berilmaydi!
+    in_prize = await is_user_in_prize_channel(callback.bot, contest.prize_channel_id, user_id)
+    if in_prize:
+        await user_repo.update_prize_access(user_id, True)
+        await safe_answer(
+            callback,
+            f"ℹ️ Siz allaqachon «{channel_title}» kanaliga a'zo bo'lgansiz!\nSovg'a havolasi faqat yangi a'zolar uchun beriladi.",
+            show_alert=True,
+        )
+        return
+
+    # 2. Foydalanuvchi allaqachon link olgan bo'lsa — takroran berilmaydi (faqat 1 marta)!
+    if user.has_prize_access:
+        await safe_answer(
+            callback,
+            "ℹ️ Sizga 1 martalik havola allaqachon yuborilgan! Har bir ishtirokchiga faqat 1 marta beriladi.",
+            show_alert=True,
+        )
+        return
+
     sent = await send_prize_link(
         bot=callback.bot,
         user_id=user_id,
         contest=contest,
         is_resubscribed=False,
+        db=db,
     )
     if sent:
         await user_repo.update_prize_access(user_id, True)

@@ -172,6 +172,14 @@ async def show_main_menu(
     share_url = build_share_url(referral_link, contest)
 
     if not is_subscribed:
+        if contest and contest.prize_channel_id:
+            user_repo = UserRepository(db)
+            db_user = await user_repo.get_by_telegram_id(user_id)
+            if db_user and (db_user.has_prize_access or db_user.referral_count >= contest.required_referrals):
+                from app.bot.handlers.user.prize import kick_user_from_prize_channel
+                await kick_user_from_prize_channel(message.bot, contest.prize_channel_id, user_id)
+                await user_repo.update_prize_access(user_id, False)
+
         channels = await sub_service.get_required_channels()
         text = _build_subscription_text(contest)
         keyboard = _subscription_keyboard(channels)
@@ -358,7 +366,11 @@ async def check_subscription_cb(callback: CallbackQuery, db: AsyncSession):
 
         # Agar foydalanuvchi yetarli referral to'plagan bo'lsa va prize kanal bo'lsa:
         if contest.prize_channel_id and ref_count >= target:
-            if not user.has_prize_access:
+            from app.bot.handlers.user.prize import is_user_in_prize_channel
+            in_prize = await is_user_in_prize_channel(callback.bot, contest.prize_channel_id, user_id)
+            if in_prize:
+                await user_repo.update_prize_access(user_id, True)
+            elif not user.has_prize_access:
                 sent = await send_prize_link(
                     bot=callback.bot,
                     user_id=user_id,
