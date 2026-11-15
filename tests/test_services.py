@@ -154,6 +154,7 @@ def test_build_share_url_native_tg_scheme():
     parsed = urllib.parse.urlparse(url)
     params = urllib.parse.parse_qs(parsed.query)
     assert params["url"][0] == ref_link
+    assert params["text"][0].startswith("\n")
     assert "Writing 2026" in params["text"][0]
     assert "👆 Qatnashish uchun quyidagi tugmani bosing." in params["text"][0]
 

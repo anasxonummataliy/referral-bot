@@ -80,9 +80,15 @@ def build_share_url(
         # Matn ichida havola allaqachon bo'lsa, url parametri bilan dublikat bo'lmasligi uchun tozalaymiz
         text = text[len(referral_link):].lstrip("\r\n")
 
+    # Telegram tg://msg_url?url=...&text=... ochganda URL va TEXT ni faqat 1 ta \n bilan birlashtiradi.
+    # Havola bilan pastdagi matn bir-biriga yopishib qolmasligi va oralarida 2 ta \n (bo'sh qator)
+    # bo'lishi uchun text boshiga \n qo'shamiz (Telegram 1 ta \n + \n{text} = \n\n).
+    clean_text = text.lstrip("\r\n") if text else ""
+    share_text = f"\n{clean_text}" if clean_text else ""
+
     params = {
         "url": referral_link,
-        "text": text,
+        "text": share_text,
     }
     return "tg://msg_url?" + urllib.parse.urlencode(params, quote_via=urllib.parse.quote)
 
