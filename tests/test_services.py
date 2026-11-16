@@ -258,3 +258,38 @@ async def test_check_full_subscription_blocks_when_inaccessible(db_session: Asyn
     is_sub_user_missing = await service.check_full_subscription(bot=mock_bot, telegram_id=8122865725, bypass_cache=True)
     assert is_sub_user_missing is False
 
+
+@pytest.mark.asyncio
+async def test_sync_unconfirmed_referrals(db_session: AsyncSession):
+    """Verify sync_unconfirmed_referrals checks unconfirmed referrals and confirms them if subscribed"""
+    from unittest.mock import AsyncMock, MagicMock
+    from app.services.referral_service import ReferralService
+    from app.database.models import User, Channel, Contest
+
+    referrer = User(telegram_id=111, full_name="Referrer", referral_count=0)
+    referred = User(telegram_id=222, full_name="Referred", referral_count=0)
+    channel = Channel(channel_id=-1001758698923, title="IELTS", is_active=True, is_required=True)
+    contest = Contest(title="Contest", required_referrals=5, is_active=True)
+    db_session.add_all([referrer, referred, channel, contest])
+    await db_session.commit()
+
+    ref_service = ReferralService(db_session)
+    await ref_service.process_new_referral(
+        new_user_telegram_id=222,
+        referrer_telegram_id=111,
+        give_bonus=False,
+    )
+
+    mock_bot = MagicMock()
+    mock_member = MagicMock()
+    mock_member.status = "member"
+    mock_bot.get_chat_member = AsyncMock(return_value=mock_member)
+    mock_bot.send_message = AsyncMock()
+
+    synced_count = await ref_service.sync_unconfirmed_referrals(mock_bot)
+    assert synced_count == 1
+
+    await db_session.refresh(referrer)
+    assert referrer.referral_count == 1
+
+

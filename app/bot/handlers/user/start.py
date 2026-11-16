@@ -191,7 +191,10 @@ async def show_main_menu(
         await _send_or_replace(message, text, keyboard, photo_id=photo_id, edit=edit)
         return
 
-    # Obuna bor — 1-xabar: Faqat konkurs rasmi va matni; 2-xabar: Alohida matnda taklif/ulashish
+    # Obuna bor — agar bu user orqali referral hali tasdiqlanmagan bo'lsa, tasdiqlaymiz (+1)
+    await ref_service.confirm_referral(user_id, message.bot)
+
+    # 1-xabar: Faqat konkurs rasmi va matni; 2-xabar: Alohida matnda taklif/ulashish
     user_repo = UserRepository(db)
     user = await user_repo.get_by_telegram_id(user_id)
     if not user:
@@ -363,6 +366,10 @@ async def check_subscription_cb(callback: CallbackQuery, db: AsyncSession):
     )
 
     if not unsubscribed:
+        # DB da obunani saqlaymiz
+        user_repo = UserRepository(db)
+        await user_repo.update_subscription_status(user_id, True)
+
         # Yangi referral bo'lsa uni tasdiqlaymiz (+1 qo'shiladi)
         ref_service = ReferralService(db)
         await ref_service.confirm_referral(user_id, callback.bot)

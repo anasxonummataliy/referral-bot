@@ -158,6 +158,31 @@ class ReferralService:
         )
         return True
 
+    async def sync_unconfirmed_referrals(self, bot) -> int:
+        """
+        Kanalga allaqachon a'zo bo'lgan, lekin bonus_given=False bo'lib qolgan
+        barcha referallarni tekshirib tasdiqlaydi (+1 qo'shadi).
+        """
+        unconfirmed = await self.referral_repo.get_unconfirmed_referrals()
+        if not unconfirmed:
+            return 0
+
+        from app.services.subscription_service import SubscriptionService
+        sub_service = SubscriptionService(self.db)
+        count = 0
+        for ref in unconfirmed:
+            referred = await self.user_repo.get(ref.referred_id)
+            if not referred:
+                continue
+            is_sub = await sub_service.check_full_subscription(
+                bot=bot, telegram_id=referred.telegram_id, bypass_cache=True
+            )
+            if is_sub:
+                confirmed = await self.confirm_referral(referred.telegram_id, bot)
+                if confirmed:
+                    count += 1
+        return count
+
     async def get_user_referral_stats(self, telegram_id: int) -> dict:
         """Foydalanuvchining referral statistikasi."""
         user = await self.user_repo.get_by_telegram_id(telegram_id)

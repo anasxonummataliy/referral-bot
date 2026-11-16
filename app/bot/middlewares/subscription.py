@@ -66,6 +66,9 @@ class SubscriptionMiddleware(BaseMiddleware):
         )
 
         if is_subscribed:
+            from app.services.referral_service import ReferralService
+            ref_service = ReferralService(db)
+            await ref_service.confirm_referral(user_id, data["bot"])
             return await handler(event, data)
 
         # Obuna yo'q bo'lsa — agar foydalanuvchida yopiq kanalga kirish huquqi bo'lsa yoki referral bajargan bo'lsa,

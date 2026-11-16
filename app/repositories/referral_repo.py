@@ -96,3 +96,10 @@ class ReferralRepository(BaseRepository[Referral]):
         res = await self.session.execute(stmt)
         await self.session.commit()
         return (res.rowcount or 0) == 1
+
+    async def get_unconfirmed_referrals(self) -> Sequence[Referral]:
+        """Tasdiqlanmagan (bonus_given=False) barcha referallarni olish"""
+        stmt = select(Referral).where(Referral.bonus_given.is_(False))
+        result = await self.session.execute(stmt)
+        return result.scalars().all()
+
