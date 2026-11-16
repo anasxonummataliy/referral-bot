@@ -9,6 +9,8 @@ Muammo tahlili va yechimlar:
 """
 
 import asyncio
+import html
+import time
 import logging
 
 from aiogram import Router, F, Bot
@@ -38,6 +40,9 @@ from app.bot.handlers.user.referral_notify import notify_referrer
 
 logger = logging.getLogger(__name__)
 router = Router()
+
+# Referrerga qayta-qayta bildirishnoma yuborilmasligi uchun 5 daqiqalik kesh (referrer_id, user_id) -> timestamp
+_ALREADY_USER_NOTIFY_COOLDOWN: dict[tuple[int, int], float] = {}
 
 # ── Yuklanish animatsiyasi ────────────────────────────────────────────────────
 PROGRESS_FRAMES = [
@@ -286,19 +291,46 @@ async def cmd_start(message: Message, bot: Bot, db: AsyncSession):
         return
 
     # ── REFERRAL QAYD ─────────────────────────────────────────────────────────
-    # Faqat referrer mavjud + o'ziga o'zi emas + haqiqatdan ham botga birinchi marta kirgan yangi user
-    if referrer_id and referrer_id != user_id and is_really_new:
-        ref_service = ReferralService(db)
-        registered = await ref_service.process_new_referral(
-            new_user_telegram_id=user_id,
-            referrer_telegram_id=referrer_id,
-            give_bonus=False,
-        )
-        if registered:
-            # Agar majburiy kanallar bo'lmasa yoki user allaqachon a'zo bo'lsa — darhol tasdiqlash
-            sub_service = SubscriptionService(db)
-            if await sub_service.check_full_subscription(bot=bot, telegram_id=user_id, bypass_cache=True):
-                await ref_service.confirm_referral(user_id, bot)
+    if referrer_id and referrer_id != user_id:
+        if is_really_new:
+            ref_service = ReferralService(db)
+            registered = await ref_service.process_new_referral(
+                new_user_telegram_id=user_id,
+                referrer_telegram_id=referrer_id,
+                give_bonus=False,
+            )
+            if registered:
+                # Agar majburiy kanallar bo'lmasa yoki user allaqachon a'zo bo'lsa — darhol tasdiqlash
+                sub_service = SubscriptionService(db)
+                if await sub_service.check_full_subscription(bot=bot, telegram_id=user_id, bypass_cache=True):
+                    await ref_service.confirm_referral(user_id, bot)
+        else:
+            # Foydalanuvchi allaqachon botda mavjud bo'lsa — referrerga xabarnoma yuboramiz
+            now = time.monotonic()
+            cooldown_key = (referrer_id, user_id)
+            if now - _ALREADY_USER_NOTIFY_COOLDOWN.get(cooldown_key, 0) > 300:
+                _ALREADY_USER_NOTIFY_COOLDOWN[cooldown_key] = now
+                referrer_user = await user_repo.get_by_telegram_id(referrer_id)
+                if referrer_user:
+                    clean_name = html.escape(message.from_user.full_name or "Foydalanuvchi")
+                    uname_str = f" (@{html.escape(message.from_user.username)})" if message.from_user.username else ""
+                    notify_text = (
+                        f"ℹ️ Siz taklif qilgan <b>{clean_name}</b>{uname_str} allaqachon botimiz foydalanuvchisi edi.\n\n"
+                        "⚠️ <i>Konkurs qoidasiga ko'ra, ball faqat botga birinchi marta kirgan yangi foydalanuvchilar uchun beriladi.</i>"
+                    )
+                    try:
+                        await bot.send_message(
+                            chat_id=referrer_id,
+                            text=notify_text,
+                            parse_mode="HTML",
+                        )
+                        logger.info(
+                            f"Referrer {referrer_id} ga bildirishnoma yuborildi: user {user_id} allaqachon bot a'zosi edi."
+                        )
+                    except Exception as e:
+                        logger.debug(
+                            f"Referrerga xabar yuborishda xatolik ({referrer_id}): {e}"
+                        )
 
     # ── KONKURS ───────────────────────────────────────────────────────────────
     contest_repo = ContestRepository(db)

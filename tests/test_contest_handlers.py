@@ -220,5 +220,55 @@ async def test_cmd_start_with_referral_payload_registers_referral_and_notifies(d
     assert sent_to_referrer is True
 
 
+@pytest.mark.asyncio
+async def test_cmd_start_with_existing_user_notifies_referrer_already_user(db_session):
+    """When an existing bot user clicks someone's referral link, referrer is notified that user was already a member"""
+    from app.bot.handlers.user.start import cmd_start
+    from app.database.models import User, Contest
+
+    # Referrer
+    referrer = User(telegram_id=222333, full_name="Active Referrer", referral_count=0)
+    # Existing user (already registered in DB)
+    existing_user = User(telegram_id=444555, full_name="Already Existing User", username="old_user")
+    contest = Contest(title="Writing 2026", required_referrals=5, is_active=True)
+    db_session.add_all([referrer, existing_user, contest])
+    await db_session.commit()
+
+    # Existing user clicks referral link of referrer: /start 222333
+    message = MagicMock()
+    message.from_user.id = 444555
+    message.from_user.is_bot = False
+    message.from_user.full_name = "Already Existing User"
+    message.from_user.username = "old_user"
+    message.from_user.language_code = "uz"
+    message.chat.id = 444555
+    message.chat.full_name = "Already Existing User"
+    message.chat.username = "old_user"
+    message.text = "/start 222333"
+    message.answer = AsyncMock()
+
+    mock_bot = MagicMock()
+    mock_bot.send_message = AsyncMock()
+    mock_bot.get_me = AsyncMock(return_value=MagicMock(username="TestBot"))
+    mock_bot.get_chat_member = AsyncMock()
+    message.bot = mock_bot
+
+    await cmd_start(message, mock_bot, db_session)
+
+    # Referrer referral_count must NOT increase
+    await db_session.refresh(referrer)
+    assert referrer.referral_count == 0
+
+    # Referrer must receive a notification stating that the user was already a member
+    referrer_notifications = [
+        call.kwargs for call in mock_bot.send_message.call_args_list
+        if call.kwargs.get("chat_id") == 222333
+    ]
+    assert len(referrer_notifications) >= 1
+    text = referrer_notifications[0].get("text", "")
+    assert "allaqachon botimiz foydalanuvchisi edi" in text
+    assert "Already Existing User" in text
+
+
 
 
