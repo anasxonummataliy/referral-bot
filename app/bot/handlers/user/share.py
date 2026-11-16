@@ -12,6 +12,7 @@ User botda ko'radigan xabar:
 import logging
 import re
 import urllib.parse
+import html as _html
 
 from aiogram import Router, F
 from aiogram.types import (
@@ -153,6 +154,51 @@ async def cmd_referral(message: Message, db: AsyncSession):
     contest_repo = ContestRepository(db)
     contest = await contest_repo.get_active_contest()
     target = contest.required_referrals if contest else 5
+
+    # Admin bo'lsa: 1 martalik prize havolani ham taqdim qilamiz
+    from app.bot.handlers.admin.base import is_admin_async
+    if await is_admin_async(user_id, db):
+        from app.bot.handlers.admin.contest import generate_admin_prize_link
+        prize_url, prize_info = await generate_admin_prize_link(message.bot, db, user_id)
+
+        keyboard_buttons = []
+        if prize_url:
+            keyboard_buttons.append([
+                InlineKeyboardButton(text="🎁 Prize Kanalga o'tish", url=prize_url)
+            ])
+            keyboard_buttons.append([
+                InlineKeyboardButton(text="🔄 Yangi 1 martalik prize havola", callback_data="adm_get_prize_link")
+            ])
+
+        user_kb = _build_user_keyboard(referral_link, contest)
+        keyboard_buttons.extend(user_kb.inline_keyboard)
+
+        if prize_url:
+            text = (
+                "👑 <b>Admin — Havolalar:</b>\n\n"
+                f"🎟 <b>1 martalik Prize Havola:</b>\n"
+                f"🎁 Kanal: <b>{_html.escape(prize_info)}</b>\n"
+                f"<code>{prize_url}</code>\n"
+                f"<i>(Faqat 1 kishi uchun amal qiladi, 1 marta ishlatilgach o'chadi)</i>\n\n"
+                "━━━━━━━━━━━━━━━━━━━\n\n"
+                f"🔗 <b>Shaxsiy Taklif Havolangiz:</b>\n"
+                f"<code>{referral_link}</code>\n"
+                f"🎯 Maqsad: <b>{target} ta</b> do'st taklif qilish."
+            )
+        else:
+            text = (
+                f"{prize_info}\n\n"
+                f"🔗 <b>Taklif havolangiz:</b>\n"
+                f"<code>{referral_link}</code>\n\n"
+                f"🎯 Maqsad: <b>{target} ta</b> do'st taklif qilish."
+            )
+
+        await message.answer(
+            text,
+            reply_markup=InlineKeyboardMarkup(inline_keyboard=keyboard_buttons),
+            disable_web_page_preview=True,
+        )
+        return
 
     keyboard = _build_user_keyboard(referral_link, contest)
 

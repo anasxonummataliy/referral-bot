@@ -6,8 +6,9 @@ Konkurs boshqaruvi — admin panel
 """
 import re
 import html as _html
+import logging
 
-from aiogram import F
+from aiogram import F, Bot
 from aiogram.types import (
     Message, CallbackQuery,
     InlineKeyboardMarkup, InlineKeyboardButton,
@@ -19,6 +20,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.bot.handlers.admin.base import admin_router, is_admin_async, admin_main_keyboard
 from app.repositories.contest_repo import ContestRepository
+
+logger = logging.getLogger(__name__)
 
 router = admin_router
 
@@ -364,6 +367,7 @@ async def adm_prize_cb(callback: CallbackQuery, db: AsyncSession):
             "1 martalik link yuboriladi."
         )
         keyboard = InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(text="🔗 1 martalik havola olish", callback_data="adm_get_prize_link")],
             [InlineKeyboardButton(text="🔄 Kanalga o'zgartirish", callback_data="contest_set_prize")],
             [InlineKeyboardButton(text="🔙 Konkurs", callback_data="adm_contest")],
         ])
@@ -476,6 +480,115 @@ async def contest_prize_channel_save(message: Message, state: FSMContext, db: As
             [InlineKeyboardButton(text="🔙 Konkurs", callback_data="adm_contest")]
         ])
     )
+
+
+# ── 1 martalik Prize Havola generatsiya qilish ──────────────────────────────
+async def generate_admin_prize_link(
+    bot: Bot,
+    db: AsyncSession,
+    admin_id: int,
+) -> tuple[str | None, str]:
+    """
+    Admin uchun aktiv konkursning Prize kanaliga 1 martalik (member_limit=1)
+    taklif havolasini yaratish.
+    Returns:
+        (invite_link, channel_title) agar muvaffaqiyatli bo'lsa
+        (None, error_message) agar xato bo'lsa
+    """
+    contest_repo = ContestRepository(db)
+    contest = await contest_repo.get_active_contest()
+    if not contest:
+        return None, "❌ Hozirda hech qanday aktiv konkurs yo'q."
+
+    if not contest.prize_channel_id:
+        return None, (
+            "❌ Aktiv konkurs uchun Prize kanal belgilanmagan.\n"
+            "Avval admin paneldan <b>🎁 Prize kanal</b> bo'limidan kanal qo'shing."
+        )
+
+    try:
+        invite = await bot.create_chat_invite_link(
+            chat_id=contest.prize_channel_id,
+            member_limit=1,
+            creates_join_request=False,
+            name=f"Admin link ({admin_id})",
+        )
+        channel_title = contest.prize_channel_title or "Prize Kanal"
+        return invite.invite_link, channel_title
+    except Exception as e:
+        logger.error(
+            f"Admin {admin_id} uchun prize link yaratishda xato (channel={contest.prize_channel_id}): {e}"
+        )
+        return None, (
+            f"❌ Sovg'a kanaliga havola yaratib bo'lmadi!\n\n"
+            f"Kanal: <b>{_html.escape(contest.prize_channel_title or str(contest.prize_channel_id))}</b>\n"
+            f"Xatolik: <code>{_html.escape(str(e))}</code>\n\n"
+            f"⚠️ Bot prize kanalda admin ekanligini va <b>Taklif havolalarini boshqarish (Invite Users via Link)</b> "
+            f"huquqiga ega ekanligini tekshiring."
+        )
+
+
+def _admin_prize_link_keyboard(invite_url: str) -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="🎁 Kanalga o'tish", url=invite_url)],
+        [InlineKeyboardButton(text="🔄 Yangi havola yaratish", callback_data="adm_get_prize_link")],
+        [InlineKeyboardButton(text="🔙 Panel", callback_data="adm_back")],
+    ])
+
+
+@router.callback_query(F.data == "adm_get_prize_link")
+async def adm_get_prize_link_cb(callback: CallbackQuery, db: AsyncSession):
+    if not await is_admin_async(callback.from_user.id, db):
+        return
+
+    invite_url, result = await generate_admin_prize_link(
+        callback.bot, db, callback.from_user.id
+    )
+
+    if not invite_url:
+        await callback.answer("❌ Xatolik yuz berdi", show_alert=True)
+        keyboard = InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(text="🔙 Panel", callback_data="adm_back")]
+        ])
+        await callback.message.answer(result, reply_markup=keyboard)
+        return
+
+    await callback.answer("✅ 1 martalik havola yaratildi!")
+    text = (
+        "🎟 <b>1 martalik Prize Kanal Havolasi:</b>\n\n"
+        f"🎁 Kanal: <b>{_html.escape(result)}</b>\n"
+        f"🔗 Havola:\n<code>{invite_url}</code>\n\n"
+        "⚠️ <i>Bu havola faqat <b>1 marta</b> ishlaydi. 1 kishi a'zo bo'lgach havola avtomatik kuyadi.</i>"
+    )
+    keyboard = _admin_prize_link_keyboard(invite_url)
+    try:
+        await callback.message.edit_text(text, reply_markup=keyboard, disable_web_page_preview=True)
+    except Exception:
+        await callback.message.answer(text, reply_markup=keyboard, disable_web_page_preview=True)
+
+
+@router.message(Command("prizelink"))
+async def cmd_admin_prizelink(message: Message, db: AsyncSession):
+    if not await is_admin_async(message.from_user.id, db):
+        return
+
+    invite_url, result = await generate_admin_prize_link(
+        message.bot, db, message.from_user.id
+    )
+
+    if not invite_url:
+        await message.answer(result)
+        return
+
+    text = (
+        "🎟 <b>1 martalik Prize Kanal Havolasi:</b>\n\n"
+        f"🎁 Kanal: <b>{_html.escape(result)}</b>\n"
+        f"🔗 Havola:\n<code>{invite_url}</code>\n\n"
+        "⚠️ <i>Bu havola faqat <b>1 marta</b> ishlaydi. 1 kishi a'zo bo'lgach havola avtomatik kuyadi.</i>"
+    )
+    keyboard = _admin_prize_link_keyboard(invite_url)
+    await message.answer(text, reply_markup=keyboard, disable_web_page_preview=True)
+
 
 
 # ── Referral xabari (yangi do'st qo'shilganda boradigan matn) ────────────────

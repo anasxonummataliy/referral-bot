@@ -40,6 +40,7 @@ def admin_main_keyboard() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="🏆 Konkurs Sozlamalari ⚙️", callback_data="adm_contest")],
         [InlineKeyboardButton(text="👑 Prize Kanal (Yopiq) 🎁", callback_data="adm_prize")],
+        [InlineKeyboardButton(text="🔗 1 martalik Prize Havola 🎟", callback_data="adm_get_prize_link")],
         [InlineKeyboardButton(text="📢 Majburiy Kanallar 📌", callback_data="adm_channels")],
         [InlineKeyboardButton(text="👥 Foydalanuvchilar 📋", callback_data="adm_users")],
         [InlineKeyboardButton(text="📊 Umumiy Statistika 📈", callback_data="adm_stats")],

@@ -33,10 +33,11 @@ USER_COMMANDS = [
 ADMIN_COMMANDS = [
     BotCommand(command="start", description="🏠 Bosh menyu"),
     BotCommand(command="admin", description="🛡️ Admin panel"),
+    BotCommand(command="link", description="🔗 1 martalik prize havola / Referral"),
+    BotCommand(command="prizelink", description="👑 1 martalik prize havola"),
     BotCommand(command="stats", description="📊 Statistika"),
     BotCommand(command="broadcast", description="📢 Xabar yuborish"),
     BotCommand(command="finduser", description="🔍 Foydalanuvchi qidirish"),
-    BotCommand(command="link", description="🔗 Taklif havolam"),
     BotCommand(command="natija", description="📈 Mening natijam"),
     BotCommand(command="contact", description="✉️ Admin bilan bog'lanish"),
     BotCommand(command="cancel", description="❌ Bekor qilish"),
