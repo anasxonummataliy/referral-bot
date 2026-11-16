@@ -50,6 +50,11 @@ async def on_chat_member_updated(
     user_repo = UserRepository(db)
     db_user = await user_repo.get_by_telegram_id(user.id)
 
+    # Agar bu foydalanuvchi botda mavjud bo'lmasa — bot foydalanuvchisi emas (oddiy kanal obunachisi)
+    # Ularga xabar yuborib ham bo'lmaydi, yopiq kanal bilan ham aloqasi yo'q.
+    if not db_user:
+        return
+
     old_status = event.old_chat_member.status
     new_status = event.new_chat_member.status
 
@@ -60,37 +65,31 @@ async def on_chat_member_updated(
 
     # ── 1. FOYDALANUVCHI KANALDAN CHIQIB KETGANDA ────────────────────────────
     if new_status in ["left", "kicked"]:
-        if db_user:
-            await user_repo.update_subscription_status(user.id, False)
+        await user_repo.update_subscription_status(user.id, False)
 
-            # Agar bu foydalanuvchi orqali referrer bonus olgan bo'lsa,
-            # kanalni tark etganda referrerning balli kamaytiriladi (revoking bonus):
-            from app.repositories.referral_repo import ReferralRepository
-            referral_repo = ReferralRepository(db)
-            ref = await referral_repo.get_by_referred_id(db_user.id)
-            if ref and ref.bonus_given:
-                revoked = await referral_repo.revoke_bonus(ref.id)
-                if revoked:
-                    referrer = await user_repo.get(ref.referrer_id)
-                    if referrer and referrer.referral_count > 0:
-                        await user_repo.decrement_referral_count(referrer.telegram_id)
-                        logger.info(
-                            f"📉 Referral balli bekor qilindi (-1): referred={db_user.telegram_id} "
-                            f"kanaldan chiqdi → referrer={referrer.telegram_id}"
-                        )
+        # Agar bu foydalanuvchi orqali referrer bonus olgan bo'lsa,
+        # kanalni tark etganda referrerning balli kamaytiriladi (revoking bonus):
+        from app.repositories.referral_repo import ReferralRepository
+        referral_repo = ReferralRepository(db)
+        ref = await referral_repo.get_by_referred_id(db_user.id)
+        if ref and ref.bonus_given:
+            revoked = await referral_repo.revoke_bonus(ref.id)
+            if revoked:
+                referrer = await user_repo.get(ref.referrer_id)
+                if referrer and referrer.referral_count > 0:
+                    await user_repo.decrement_referral_count(referrer.telegram_id)
+                    logger.info(
+                        f"📉 Referral balli bekor qilindi (-1): referred={db_user.telegram_id} "
+                        f"kanaldan chiqdi → referrer={referrer.telegram_id}"
+                    )
 
         was_in_prize = False
         if contest and contest.prize_channel_id:
-            # Agar userda prize huquqi bo'lsa yoki yetarli referali bo'lsa
-            if db_user and (db_user.has_prize_access or db_user.referral_count >= contest.required_referrals):
+            # Faqat userda prize huquqi bo'lsa yoki yetarli referali bo'lsa yopiq kanaldan chiqariladi
+            if db_user.has_prize_access or db_user.referral_count >= contest.required_referrals:
                 await kick_user_from_prize_channel(bot, contest.prize_channel_id, user.id)
                 await user_repo.update_prize_access(user.id, False)
                 was_in_prize = True
-            else:
-                try:
-                    await kick_user_from_prize_channel(bot, contest.prize_channel_id, user.id)
-                except Exception:
-                    pass
 
         # Foydalanuvchiga bot orqali ogohlantirish yuboramiz
         try:

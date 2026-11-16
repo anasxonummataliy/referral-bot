@@ -405,3 +405,69 @@ class TestChatMemberUpdatedFlow:
         assert "faqat 1 marta beriladi" in answered_text
         bot.create_chat_invite_link.assert_not_called()
 
+    async def test_non_bot_user_leaves_mandatory_channel_ignored(self, db_session: AsyncSession):
+        """User NOT in bot DB leaves mandatory channel -> completely ignored, no ban/unban or messages"""
+        from app.database.models import Channel, Contest
+        from app.bot.handlers.user.chat_member import on_chat_member_updated
+
+        channel = Channel(channel_id=-100444555, title="Channel A", is_active=True, is_required=True)
+        contest = Contest(title="Konkurs", prize_channel_id=-100999000, prize_channel_title="Prize", required_referrals=5, is_active=True)
+        db_session.add_all([channel, contest])
+        await db_session.commit()
+
+        bot = MagicMock()
+        bot.ban_chat_member = AsyncMock()
+        bot.unban_chat_member = AsyncMock()
+        bot.send_message = AsyncMock()
+
+        # Random user 123999 leaves mandatory channel
+        event = MagicMock()
+        event.chat.id = -100444555
+        event.new_chat_member.user.id = 123999
+        event.new_chat_member.user.is_bot = False
+        event.old_chat_member.status = "member"
+        event.new_chat_member.status = "left"
+
+        await on_chat_member_updated(event, bot, db_session)
+
+        # Must NOT attempt to ban/unban or message
+        bot.ban_chat_member.assert_not_called()
+        bot.unban_chat_member.assert_not_called()
+        bot.send_message.assert_not_called()
+
+    async def test_non_prize_user_leaves_mandatory_channel_not_kicked_from_prize(self, db_session: AsyncSession):
+        """Bot user with 0 referrals leaves channel -> not kicked from prize channel, receives normal alert"""
+        from app.database.models import User, Channel, Contest
+        from app.bot.handlers.user.chat_member import on_chat_member_updated
+
+        user = User(telegram_id=555666, full_name="Regular User", referral_count=0, has_prize_access=False, is_subscribed=True)
+        channel = Channel(channel_id=-100444555, title="Channel A", is_active=True, is_required=True)
+        contest = Contest(title="Konkurs", prize_channel_id=-100999000, prize_channel_title="Prize", required_referrals=5, is_active=True)
+        db_session.add_all([user, channel, contest])
+        await db_session.commit()
+
+        bot = MagicMock()
+        bot.ban_chat_member = AsyncMock()
+        bot.unban_chat_member = AsyncMock()
+        bot.send_message = AsyncMock()
+
+        event = MagicMock()
+        event.chat.id = -100444555
+        event.new_chat_member.user.id = 555666
+        event.new_chat_member.user.is_bot = False
+        event.old_chat_member.status = "member"
+        event.new_chat_member.status = "left"
+
+        await on_chat_member_updated(event, bot, db_session)
+
+        # Must NOT ban/unban from prize channel
+        bot.ban_chat_member.assert_not_called()
+        bot.unban_chat_member.assert_not_called()
+
+        # Must send standard unsubscribed message (not prize kicked message)
+        bot.send_message.assert_awaited_once()
+        sent_text = bot.send_message.call_args[1]["text"]
+        assert "yopiq kanaldan chiqarildingiz" not in sent_text
+        assert "majburiy kanal" in sent_text
+
+
